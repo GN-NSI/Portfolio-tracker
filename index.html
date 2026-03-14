@@ -61,6 +61,8 @@
   .rform{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
   .warn{font-size:11px;color:#888;background:#f9f9f9;padding:7px 10px;border-radius:8px;margin-bottom:10px;line-height:1.5;border-left:3px solid #ddd}
   .dev-tag{font-size:9px;color:#aaa;vertical-align:middle;margin-left:2px}
+  .manual-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #f0f0f0}
+  .manual-row:last-child{border-bottom:none}
   @media(max-width:600px){.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -83,6 +85,7 @@
     <button class="tab" onclick="go('gerer',this)">Gérer</button>
   </div>
 
+  <!-- POSITIONS -->
   <div id="pane-positions" class="pane active">
     <div class="card">
       <div class="ctitle">Vue consolidée — cliquer sur ▶ pour détail par compte</div>
@@ -92,6 +95,7 @@
     </div>
   </div>
 
+  <!-- RÉPARTITION -->
   <div id="pane-repartition" class="pane">
     <div class="two-col">
       <div class="card"><div class="ctitle">Par enveloppe</div><canvas id="cv-env" width="180" height="180" style="display:block;margin:0 auto 10px"></canvas><div id="lg-env" class="legend"></div></div>
@@ -100,6 +104,7 @@
     <div class="card"><div class="ctitle">Secteur</div><canvas id="cv-sec" width="400" height="160" style="display:block;margin:0 auto 10px;max-width:100%"></canvas><div id="lg-sec" class="legend" style="display:grid;grid-template-columns:1fr 1fr;gap:4px"></div></div>
   </div>
 
+  <!-- TRANSACTIONS -->
   <div id="pane-historique" class="pane">
     <div class="card">
       <div class="ctitle">Transactions</div>
@@ -120,6 +125,7 @@
     <div style="text-align:right"><button class="btn" onclick="exportCSV()">↓ Export CSV</button></div>
   </div>
 
+  <!-- GÉRER -->
   <div id="pane-gerer" class="pane">
     <div class="card">
       <div class="ctitle">Toutes les lignes</div>
@@ -139,12 +145,17 @@
         </div>
       </div>
     </div>
+
+    <!-- COURS MANUELS -->
+    <div class="card">
+      <div class="ctitle">Cours manuels</div>
+      <div class="warn">Pour les titres sans feed automatique fiable (gettex / Trade Republic). Saisis le cours en € depuis ton app TR. Ce cours est prioritaire sur Yahoo Finance et sauvegardé localement.</div>
+      <div id="manual-tbl"></div>
+    </div>
   </div>
 </div>
 
 <script>
-// ─── CONFIG ───────────────────────────────────────────────────────
-// URL de ton API Vercel — sera automatiquement relative une fois déployé
 const API_BASE = '/api/quote';
 
 const ETF_META = {
@@ -153,9 +164,10 @@ const ETF_META = {
   'FR0011882364': { yhTicker: 'AWAT.PA',  name: 'ETF Eau' },
 };
 
+// null = pas de fetch Yahoo, cours manuel uniquement
 const YH_TICKER = {
-  '6857.T':    '6857.T',
-  '005930.KS': '005930.KS',
+  '6857.T':    null,
+  '005930.KS': null,
   'BESI.AS':   'BESI.AS',
 };
 
@@ -224,153 +236,126 @@ const DEFAULTS = [
 ];
 
 // ─── STATE ────────────────────────────────────────────────────────
-let positions = [], prices = {}, let fxUSD = 0.92, fxJPY = 0.0062, fxKRW = 0.00068, txs = [], charts2 = {}, expanded = new Set();
+let positions=[], prices={}, fxUSD=0.92, txs=[], charts2={}, expanded=new Set();
+let manualPrices = JSON.parse(localStorage.getItem('pf_manual') || '{}');
 
-function accCurrency(account){ return account === 'CTO1' ? 'USD' : 'EUR'; }
+function accCurrency(account){ return account==='CTO1'?'USD':'EUR'; }
 
 function load(){
-  try {
-    const p = localStorage.getItem('pfv_pos'); positions = p ? JSON.parse(p) : JSON.parse(JSON.stringify(DEFAULTS));
-    const t = localStorage.getItem('pfv_tx');  txs = t ? JSON.parse(t) : [];
-  } catch(e){ positions = JSON.parse(JSON.stringify(DEFAULTS)); txs = []; }
+  try{
+    const p=localStorage.getItem('pfv_pos'); positions=p?JSON.parse(p):JSON.parse(JSON.stringify(DEFAULTS));
+    const t=localStorage.getItem('pfv_tx');  txs=t?JSON.parse(t):[];
+  }catch(e){ positions=JSON.parse(JSON.stringify(DEFAULTS)); txs=[]; }
 }
 function save(){
-  try { localStorage.setItem('pfv_pos', JSON.stringify(positions)); localStorage.setItem('pfv_tx', JSON.stringify(txs)); } catch(e){}
+  try{ localStorage.setItem('pfv_pos',JSON.stringify(positions)); localStorage.setItem('pfv_tx',JSON.stringify(txs)); }catch(e){}
 }
 
-// ─── FETCH via proxy Vercel ───────────────────────────────────────
+// ─── FETCH ────────────────────────────────────────────────────────
 async function fetchQuote(ticker){
-  const yhTicker = ETF_META[ticker]?.yhTicker || YH_TICKER[ticker] || ticker;
-  try {
-    const r = await fetch(`${API_BASE}?symbol=${encodeURIComponent(yhTicker)}`);
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.price || null;
-  } catch(e){ return null; }
+  // Cours manuel prioritaire
+  if(manualPrices[ticker] && manualPrices[ticker]>0) return manualPrices[ticker];
+  const yhTicker = ETF_META[ticker]?.yhTicker || YH_TICKER[ticker];
+  if(!yhTicker) return null; // pas de ticker = pas de fetch
+  try{
+    const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(yhTicker)}`);
+    if(!r.ok) return null;
+    const d=await r.json();
+    return d.price||null;
+  }catch(e){ return null; }
 }
 
 async function fetchFX(){
-  const pairs = [
-    ['USDEUR=X', v => fxUSD = v],
-    ['JPYEUR=X', v => fxJPY = v],
-    ['KRWEUR=X', v => fxKRW = v],
-  ];
-  await Promise.all(pairs.map(async ([symbol, setter]) => {
-    try {
-      const r = await fetch(`${API_BASE}?symbol=${symbol}`);
-      if (!r.ok) return;
-      const d = await r.json();
-      if (d.price && d.price > 0) setter(d.price);
-    } catch(e) {}
-  }));
+  try{
+    const r=await fetch(`${API_BASE}?symbol=USDEUR%3DX`);
+    if(!r.ok) return;
+    const d=await r.json();
+    if(d.price&&d.price>0) fxUSD=d.price;
+  }catch(e){}
 }
 
 async function loadAll(){
-  document.getElementById('upd').textContent = 'Actualisation en cours…';
-  setSt('sload', 'Récupération des cours…');
-  document.getElementById('pprog').style.display = 'block';
-  document.getElementById('pfill').style.width = '3%';
-
+  document.getElementById('upd').textContent='Actualisation en cours…';
+  setSt('sload','Récupération des cours…');
+  document.getElementById('pprog').style.display='block';
+  document.getElementById('pfill').style.width='3%';
   await fetchFX();
-
-  const unique = [...new Map(positions.map(p => [p.ticker, p])).values()];
-  let done = 0;
-
-  await Promise.all(unique.map(async pos => {
-    const p = await fetchQuote(pos.ticker);
-    if (p && p > 0) prices[pos.ticker] = p;
+  const unique=[...new Map(positions.map(p=>[p.ticker,p])).values()];
+  let done=0;
+  await Promise.all(unique.map(async pos=>{
+    const p=await fetchQuote(pos.ticker);
+    if(p&&p>0) prices[pos.ticker]=p;
     done++;
-    document.getElementById('pfill').style.width = Math.round((done / unique.length) * 100) + '%';
+    document.getElementById('pfill').style.width=Math.round((done/unique.length)*100)+'%';
     renderMetrics(); renderPositions();
   }));
-
-  document.getElementById('pprog').style.display = 'none';
-  const n = Object.keys(prices).length, now = new Date().toLocaleTimeString('fr-FR');
-  setSt(n > 0 ? 'sok' : 'serr',
-    n > 0 ? `${n}/${unique.length} cours chargés — ${now} — 1 USD = ${fxUSD.toFixed(4)} EUR`
-           : 'Erreur de chargement. Vérifier la connexion.');
-  document.getElementById('upd').textContent = 'Mis à jour : ' + now;
+  document.getElementById('pprog').style.display='none';
+  const n=Object.keys(prices).length, now=new Date().toLocaleTimeString('fr-FR');
+  setSt(n>0?'sok':'serr',
+    n>0?`${n}/${unique.length} cours chargés — ${now} — 1 USD = ${fxUSD.toFixed(4)} EUR`
+       :'Erreur de chargement. Vérifier la connexion.');
+  document.getElementById('upd').textContent='Mis à jour : '+now;
   render();
 }
+function setSt(c,t){ const e=document.getElementById('pst'); e.className='status '+c; e.textContent=t; }
 
-function setSt(c, t){ const e = document.getElementById('pst'); e.className = 'status ' + c; e.textContent = t; }
-
-// ─── CALCULS ─────────────────────────────────────────────────────
+// ─── CALCULS ──────────────────────────────────────────────────────
 function getCoursEUR(pos){
-  let p = prices[pos.ticker] || null;
-  if (!p) return null;
-  if (accCurrency(pos.account) === 'USD') return p * fxUSD;
-  // Actions cotées en devises étrangères sur CTO2
-  if (pos.ticker === '6857.T')    return p * fxJPY;
-  if (pos.ticker === '005930.KS') return p * fxKRW;
+  // Cours manuel prioritaire
+  if(manualPrices[pos.ticker]&&manualPrices[pos.ticker]>0) return manualPrices[pos.ticker];
+  let p=prices[pos.ticker]||null;
+  if(!p) return null;
+  if(accCurrency(pos.account)==='USD') return p*fxUSD;
   return p;
 }
-
-function getPRUeur(pos){
-  return accCurrency(pos.account) === 'USD' ? pos.pru * fxUSD : pos.pru;
-}
-
-function mvEUR(pos){
-  const c = getCoursEUR(pos);
-  return pos.qty * (c !== null ? c : getPRUeur(pos));
-}
-
-function pnlEUR(pos){
-  const c = getCoursEUR(pos);
-  if (!c) return 0;
-  return pos.qty * (c - getPRUeur(pos));
-}
-
-function pnlPct(pos){
-  const inv = pos.qty * getPRUeur(pos);
-  return inv ? (pnlEUR(pos) / inv) * 100 : 0;
-}
-
+function getPRUeur(pos){ return accCurrency(pos.account)==='USD'?pos.pru*fxUSD:pos.pru; }
+function mvEUR(pos){ const c=getCoursEUR(pos); return pos.qty*(c!==null?c:getPRUeur(pos)); }
+function pnlEUR(pos){ const c=getCoursEUR(pos); if(!c) return 0; return pos.qty*(c-getPRUeur(pos)); }
+function pnlPct(pos){ const inv=pos.qty*getPRUeur(pos); return inv?(pnlEUR(pos)/inv)*100:0; }
 function eur(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function usd(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
-function fpct(v){ return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
+function fpct(v){ return (v>=0?'+':'')+v.toFixed(2)+'%'; }
 
 // ─── CONSOLIDATION ────────────────────────────────────────────────
 function consolidate(){
-  const map = {};
-  positions.forEach(pos => {
-    const k = pos.ticker;
-    if (!map[k]) map[k] = { ticker:k, name:pos.name, lines:[], sector:pos.sector, geo:pos.geo };
+  const map={};
+  positions.forEach(pos=>{
+    const k=pos.ticker;
+    if(!map[k]) map[k]={ticker:k,name:pos.name,lines:[],sector:pos.sector,geo:pos.geo};
     map[k].lines.push(pos);
   });
-  return Object.values(map).map(g => {
-    const totalInvEUR = g.lines.reduce((s,p) => s + p.qty * getPRUeur(p), 0);
-    const totalQty    = g.lines.reduce((s,p) => s + p.qty, 0);
-    const pruMoyEUR   = totalQty > 0 ? totalInvEUR / totalQty : 0;
-    const totalMV     = g.lines.reduce((s,p) => s + mvEUR(p), 0);
-    const pnl         = totalMV - totalInvEUR;
-    const pnlPct      = totalInvEUR > 0 ? (pnl / totalInvEUR) * 100 : 0;
-    return { ...g, totalQty, pruMoyEUR, totalInvEUR, totalMV, pnl, pnlPct, isETF: !!ETF_META[g.ticker] };
+  return Object.values(map).map(g=>{
+    const totalInvEUR=g.lines.reduce((s,p)=>s+p.qty*getPRUeur(p),0);
+    const totalQty=g.lines.reduce((s,p)=>s+p.qty,0);
+    const pruMoyEUR=totalQty>0?totalInvEUR/totalQty:0;
+    const totalMV=g.lines.reduce((s,p)=>s+mvEUR(p),0);
+    const pnl=totalMV-totalInvEUR;
+    const pnlPct=totalInvEUR>0?(pnl/totalInvEUR)*100:0;
+    return{...g,totalQty,pruMoyEUR,totalInvEUR,totalMV,pnl,pnlPct,isETF:!!ETF_META[g.ticker]};
   });
 }
 
-function etfExpo(ticker, etfMV){
-  const h = ETF_HOLDINGS[ticker]; if (!h) return [];
-  const rows = h.map(e => ({ name:e.name, ticker:e.ticker, pct:e.pct, val:etfMV*(e.pct/100) }));
-  const cov = h.reduce((s,e) => s + e.pct, 0);
-  if (cov < 100) rows.push({ name:'Autres composantes', ticker:'—', pct:100-cov, val:etfMV*((100-cov)/100) });
+function etfExpo(ticker,etfMV){
+  const h=ETF_HOLDINGS[ticker]; if(!h) return[];
+  const rows=h.map(e=>({name:e.name,ticker:e.ticker,pct:e.pct,val:etfMV*(e.pct/100)}));
+  const cov=h.reduce((s,e)=>s+e.pct,0);
+  if(cov<100) rows.push({name:'Autres composantes',ticker:'—',pct:100-cov,val:etfMV*((100-cov)/100)});
   return rows;
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────
 function render(){
   renderMetrics(); renderPositions(); renderManage(); populateTxSel(); renderTx();
-  if (document.getElementById('pane-repartition').classList.contains('active')) renderRep();
+  if(document.getElementById('pane-repartition').classList.contains('active')) renderRep();
+  if(document.getElementById('pane-gerer').classList.contains('active')) renderManualPrices();
 }
 
 function renderMetrics(){
-  let tot=0, inv=0, pea=0, c1=0, c2=0;
-  positions.forEach(p => {
-    const m = mvEUR(p); tot += m; inv += p.qty * getPRUeur(p);
-    if (p.account==='PEA') pea+=m; else if (p.account==='CTO1') c1+=m; else c2+=m;
-  });
-  const g = tot-inv, gp = inv ? (g/inv)*100 : 0;
-  document.getElementById('mbar').innerHTML = `
+  let tot=0,inv=0,pea=0,c1=0,c2=0;
+  positions.forEach(p=>{ const m=mvEUR(p); tot+=m; inv+=p.qty*getPRUeur(p);
+    if(p.account==='PEA') pea+=m; else if(p.account==='CTO1') c1+=m; else c2+=m; });
+  const g=tot-inv, gp=inv?(g/inv)*100:0;
+  document.getElementById('mbar').innerHTML=`
     <div class="metric"><div class="mlabel">Valeur totale</div><div class="mval">${eur(tot)}</div></div>
     <div class="metric"><div class="mlabel">Investi</div><div class="mval">${eur(inv)}</div></div>
     <div class="metric"><div class="mlabel">PV / MV latente</div><div class="mval ${g>=0?'pos':'neg'}">${eur(g)}</div><div class="msub ${g>=0?'pos':'neg'}">${fpct(gp)}</div></div>
@@ -380,9 +365,9 @@ function renderMetrics(){
 }
 
 function renderPositions(){
-  const groups = consolidate().sort((a,b) => b.totalMV - a.totalMV);
-  const tot = groups.reduce((s,g) => s + g.totalMV, 0);
-  let h = `<table><colgroup>
+  const groups=consolidate().sort((a,b)=>b.totalMV-a.totalMV);
+  const tot=groups.reduce((s,g)=>s+g.totalMV,0);
+  let h=`<table><colgroup>
     <col style="width:18%"><col style="width:8%"><col style="width:11%"><col style="width:11%">
     <col style="width:11%"><col style="width:11%"><col style="width:8%"><col style="width:11%"><col style="width:11%">
   </colgroup><thead><tr>
@@ -390,22 +375,24 @@ function renderPositions(){
     <th>Val. marché</th><th>PV/MV €</th><th>PV%</th><th>Poids</th><th>Comptes</th>
   </tr></thead><tbody>`;
 
-  groups.forEach((g, gi) => {
-    const w = tot ? (g.totalMV/tot)*100 : 0;
-    const cl = g.pnl >= 0 ? 'pos' : 'neg';
-    const cp = getCoursEUR(g.lines[0]);
-    const isOpen = expanded.has(g.ticker);
-    const multiLine = g.lines.length > 1 || g.isETF;
-    const arrow = multiLine ? `<span class="toggle" id="tog-${gi}">${isOpen?'▼':'▶'}</span>` : `<span class="toggle"></span>`;
-    const badges = [...new Set(g.lines.map(l=>l.account))].map(a =>
+  groups.forEach((g,gi)=>{
+    const w=tot?(g.totalMV/tot)*100:0;
+    const cl=g.pnl>=0?'pos':'neg';
+    const cp=getCoursEUR(g.lines[0]);
+    const isOpen=expanded.has(g.ticker);
+    const multiLine=g.lines.length>1||g.isETF;
+    const arrow=multiLine?`<span class="toggle" id="tog-${gi}">${isOpen?'▼':'▶'}</span>`:`<span class="toggle"></span>`;
+    const badges=[...new Set(g.lines.map(l=>l.account))].map(a=>
       `<span class="badge ${a==='PEA'?'bpea':a==='CTO1'?'bcto1':'bcto2'}">${a==='PEA'?'PEA':a==='CTO1'?'IBKR':'TR'}</span>`
     ).join(' ');
+    const isManual=manualPrices[g.ticker]&&manualPrices[g.ticker]>0;
+    const coursDisplay=cp?`${eur(cp)}${isManual?' <span style="font-size:9px;color:#888">(M)</span>':''}`:'<span style="color:#aaa;font-size:10px">PRU</span>';
 
-    h += `<tr class="main-row" onclick="toggleRow(${gi},'${g.ticker}')">
+    h+=`<tr class="main-row" onclick="toggleRow(${gi},'${g.ticker}')">
       <td style="font-weight:600">${arrow}${g.name||g.ticker}</td>
-      <td>${g.totalQty < 1 ? g.totalQty.toFixed(3) : g.totalQty % 1 === 0 ? g.totalQty : g.totalQty.toFixed(3)}</td>
+      <td>${g.totalQty<1?g.totalQty.toFixed(3):g.totalQty%1===0?g.totalQty:g.totalQty.toFixed(3)}</td>
       <td>${eur(g.pruMoyEUR)}</td>
-      <td>${cp ? eur(cp) : '<span style="color:#aaa;font-size:10px">PRU</span>'}</td>
+      <td>${coursDisplay}</td>
       <td style="font-weight:600">${eur(g.totalMV)}</td>
       <td class="${cl}" style="font-weight:600">${eur(g.pnl)}</td>
       <td class="${cl}">${fpct(g.pnlPct)}</td>
@@ -416,18 +403,18 @@ function renderPositions(){
       <td>${badges}</td>
     </tr>`;
 
-    if (g.lines.length > 1) {
-      g.lines.forEach(line => {
-        const lmv = mvEUR(line), lpnl = pnlEUR(line), lpruEUR = getPRUeur(line), lcp = getCoursEUR(line);
-        const lpnlPct = line.qty * lpruEUR > 0 ? (lpnl/(line.qty*lpruEUR))*100 : 0;
-        const lcl = lpnl >= 0 ? 'pos' : 'neg';
-        const isUSD = accCurrency(line.account) === 'USD';
-        const badge = `<span class="badge ${line.account==='PEA'?'bpea':line.account==='CTO1'?'bcto1':'bcto2'}">${line.account==='PEA'?'PEA':line.account==='CTO1'?'IBKR':'TR'}</span>`;
-        const pruDisp = isUSD ? `${usd(line.pru)} <span class="dev-tag">(${eur(lpruEUR)})</span>` : eur(line.pru);
-        h += `<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
-          <td>${badge} ${line.qty < 1 ? line.qty.toFixed(4) : line.qty} titres</td>
+    if(g.lines.length>1){
+      g.lines.forEach(line=>{
+        const lmv=mvEUR(line),lpnl=pnlEUR(line),lpruEUR=getPRUeur(line),lcp=getCoursEUR(line);
+        const lpnlPct=line.qty*lpruEUR>0?(lpnl/(line.qty*lpruEUR))*100:0;
+        const lcl=lpnl>=0?'pos':'neg';
+        const isUSD=accCurrency(line.account)==='USD';
+        const badge=`<span class="badge ${line.account==='PEA'?'bpea':line.account==='CTO1'?'bcto1':'bcto2'}">${line.account==='PEA'?'PEA':line.account==='CTO1'?'IBKR':'TR'}</span>`;
+        const pruDisp=isUSD?`${usd(line.pru)} <span class="dev-tag">(${eur(lpruEUR)})</span>`:eur(line.pru);
+        h+=`<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
+          <td>${badge} ${line.qty<1?line.qty.toFixed(4):line.qty} titres</td>
           <td>—</td><td>${pruDisp}</td>
-          <td>${lcp ? eur(lcp) : '—'}</td>
+          <td>${lcp?eur(lcp):'—'}</td>
           <td>${eur(lmv)}</td>
           <td class="${lcl}">${eur(lpnl)}</td>
           <td class="${lcl}">${fpct(lpnlPct)}</td>
@@ -436,13 +423,13 @@ function renderPositions(){
       });
     }
 
-    if (g.isETF) {
-      const expo = etfExpo(g.ticker, g.totalMV);
-      h += `<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
+    if(g.isETF){
+      const expo=etfExpo(g.ticker,g.totalMV);
+      h+=`<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
         <td colspan="9" style="font-weight:600;font-size:11px;padding:5px 8px 2px 26px;color:#666">Composition estimée :</td>
       </tr>`;
-      expo.forEach(e => {
-        h += `<tr class="etf-row ${isOpen?'':'hidden'}" data-group="${gi}">
+      expo.forEach(e=>{
+        h+=`<tr class="etf-row ${isOpen?'':'hidden'}" data-group="${gi}">
           <td>${e.name} <span style="color:#aaa;font-size:10px">${e.ticker}</span></td>
           <td colspan="3" style="color:#aaa">${e.pct.toFixed(1)}% de l'ETF</td>
           <td>${eur(e.val)}</td>
@@ -452,93 +439,131 @@ function renderPositions(){
     }
   });
 
-  h += '</tbody></table>';
-  document.getElementById('pos-tbl').innerHTML = h;
+  h+='</tbody></table>';
+  document.getElementById('pos-tbl').innerHTML=h;
 }
 
-function toggleRow(gi, ticker){
-  if (expanded.has(ticker)) expanded.delete(ticker); else expanded.add(ticker);
-  const tog = document.getElementById('tog-'+gi);
-  if (tog) tog.textContent = expanded.has(ticker) ? '▼' : '▶';
-  document.querySelectorAll(`[data-group="${gi}"]`).forEach(row => {
-    row.classList.toggle('hidden', !expanded.has(ticker));
+function toggleRow(gi,ticker){
+  if(expanded.has(ticker)) expanded.delete(ticker); else expanded.add(ticker);
+  const tog=document.getElementById('tog-'+gi);
+  if(tog) tog.textContent=expanded.has(ticker)?'▼':'▶';
+  document.querySelectorAll(`[data-group="${gi}"]`).forEach(row=>{
+    row.classList.toggle('hidden',!expanded.has(ticker));
   });
 }
 
-function pie(id, labels, data, colors){
-  const ctx = document.getElementById(id); if (!ctx) return;
-  if (charts2[id]) charts2[id].destroy();
-  charts2[id] = new Chart(ctx, {
-    type:'doughnut',
-    data:{labels, datasets:[{data, backgroundColor:colors, borderWidth:0}]},
-    options:{responsive:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed.toFixed(1)}%`}}}, cutout:'62%'}
+// ─── COURS MANUELS ────────────────────────────────────────────────
+function renderManualPrices(){
+  const targets=[...new Map(
+    positions.filter(p=>YH_TICKER[p.ticker]===null&&!ETF_META[p.ticker])
+    .map(p=>[p.ticker,p])
+  ).values()];
+
+  if(!targets.length){
+    document.getElementById('manual-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:4px 0">Aucun titre en saisie manuelle.</p>';
+    return;
+  }
+
+  let h='';
+  targets.forEach(p=>{
+    const cur=manualPrices[p.ticker]||'';
+    const cp=cur?parseFloat(cur):null;
+    const pru=getPRUeur(p);
+    const pv=cp?((cp-pru)/pru*100):null;
+    const pvCl=pv===null?'':pv>=0?'pos':'neg';
+    h+=`<div class="manual-row">
+      <div style="min-width:130px">
+        <div style="font-weight:600;font-size:13px">${p.name}</div>
+        <div style="font-size:11px;color:#aaa">${p.ticker}</div>
+      </div>
+      <input type="number" value="${cur}" placeholder="Cours en €" step="0.01" style="width:130px"
+        oninput="setManualPrice('${p.ticker}',this.value)">
+      <div style="font-size:12px;min-width:80px">
+        PRU : <strong>${eur(pru)}</strong>
+      </div>
+      ${cp?`<div style="font-size:12px;font-weight:600" class="${pvCl}">${fpct(pv)} — ${eur(cp)}</div>`:'<div style="font-size:12px;color:#aaa">—</div>'}
+      <div style="font-size:11px;color:#aaa">Saisi depuis TR • prioritaire</div>
+    </div>`;
   });
+  document.getElementById('manual-tbl').innerHTML=h;
 }
-function mkLegend(id, items){
-  document.getElementById(id).innerHTML = items.map(([l,c,v]) =>
+
+function setManualPrice(ticker,val){
+  const v=parseFloat(val);
+  if(v>0){ manualPrices[ticker]=v; prices[ticker]=v; }
+  else{ delete manualPrices[ticker]; delete prices[ticker]; }
+  localStorage.setItem('pf_manual',JSON.stringify(manualPrices));
+  renderMetrics(); renderPositions(); renderManualPrices();
+}
+
+// ─── RÉPARTITION ──────────────────────────────────────────────────
+function pie(id,labels,data,colors){
+  const ctx=document.getElementById(id); if(!ctx) return;
+  if(charts2[id]) charts2[id].destroy();
+  charts2[id]=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0}]},
+    options:{responsive:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed.toFixed(1)}%`}}},cutout:'62%'}});
+}
+function mkLegend(id,items){
+  document.getElementById(id).innerHTML=items.map(([l,c,v])=>
     `<div class="li"><div class="dot" style="background:${c}"></div><span style="flex:1">${l}</span><span style="font-weight:600">${v.toFixed(1)}%</span></div>`
   ).join('');
 }
-
 function renderRep(){
-  const tot = positions.reduce((s,p) => s+mvEUR(p), 0); if (!tot) return;
-  const env = {PEA:0,CTO1:0,CTO2:0}, geo = {}, sec = {};
-  positions.forEach(p => {
-    const m = mvEUR(p);
-    env[p.account] = (env[p.account]||0)+m;
-    geo[p.geo||'Autre'] = (geo[p.geo||'Autre']||0)+m;
-    sec[p.sector||'Autre'] = (sec[p.sector||'Autre']||0)+m;
-  });
-  const ep = v => (v/tot)*100;
-  const GC = ['#1a1a1a','#2563eb','#dc2626','#d97706','#16a34a','#9333ea','#0891b2','#be185d'];
-  pie('cv-env', ['PEA','CTO IBKR','CTO TR'], [ep(env.PEA),ep(env.CTO1),ep(env.CTO2)], ['#2563eb','#16a34a','#d97706']);
-  mkLegend('lg-env', [['PEA','#2563eb',ep(env.PEA)],['CTO IBKR','#16a34a',ep(env.CTO1)],['CTO TR','#d97706',ep(env.CTO2)]]);
-  const gk = Object.keys(geo).sort((a,b) => geo[b]-geo[a]);
-  pie('cv-geo', gk, gk.map(k=>ep(geo[k])), GC.slice(0,gk.length));
-  mkLegend('lg-geo', gk.map((k,i) => [k, GC[i]||'#888', ep(geo[k])]));
-  const sk = Object.keys(sec).sort((a,b) => sec[b]-sec[a]);
-  pie('cv-sec', sk, sk.map(k=>ep(sec[k])), GC.slice(0,sk.length));
-  document.getElementById('lg-sec').innerHTML = sk.map((k,i) =>
+  const tot=positions.reduce((s,p)=>s+mvEUR(p),0); if(!tot) return;
+  const env={PEA:0,CTO1:0,CTO2:0},geo={},sec={};
+  positions.forEach(p=>{ const m=mvEUR(p);
+    env[p.account]=(env[p.account]||0)+m;
+    geo[p.geo||'Autre']=(geo[p.geo||'Autre']||0)+m;
+    sec[p.sector||'Autre']=(sec[p.sector||'Autre']||0)+m; });
+  const ep=v=>(v/tot)*100;
+  const GC=['#1a1a1a','#2563eb','#dc2626','#d97706','#16a34a','#9333ea','#0891b2','#be185d'];
+  pie('cv-env',['PEA','CTO IBKR','CTO TR'],[ep(env.PEA),ep(env.CTO1),ep(env.CTO2)],['#2563eb','#16a34a','#d97706']);
+  mkLegend('lg-env',[['PEA','#2563eb',ep(env.PEA)],['CTO IBKR','#16a34a',ep(env.CTO1)],['CTO TR','#d97706',ep(env.CTO2)]]);
+  const gk=Object.keys(geo).sort((a,b)=>geo[b]-geo[a]);
+  pie('cv-geo',gk,gk.map(k=>ep(geo[k])),GC.slice(0,gk.length));
+  mkLegend('lg-geo',gk.map((k,i)=>[k,GC[i]||'#888',ep(geo[k])]));
+  const sk=Object.keys(sec).sort((a,b)=>sec[b]-sec[a]);
+  pie('cv-sec',sk,sk.map(k=>ep(sec[k])),GC.slice(0,sk.length));
+  document.getElementById('lg-sec').innerHTML=sk.map((k,i)=>
     `<div class="li"><div class="dot" style="background:${GC[i]||'#888'}"></div><span style="flex:1">${k}</span><span style="font-weight:600">${ep(sec[k]).toFixed(1)}%</span></div>`
   ).join('');
 }
 
+// ─── GÉRER ────────────────────────────────────────────────────────
 function renderManage(){
-  let h = `<table><thead><tr>
-    <th class="left">Titre</th><th>Cpte</th><th>Qté</th><th>PRU (devise orig.)</th><th>Dev.</th><th>Secteur</th><th>Zone</th><th></th>
+  let h=`<table><thead><tr>
+    <th class="left">Titre</th><th>Cpte</th><th>Qté</th><th>PRU</th><th>Dev.</th><th>Secteur</th><th>Zone</th><th></th>
   </tr></thead><tbody>`;
-  positions.forEach((p,i) => {
-    const badge = p.account==='PEA'?'bpea':p.account==='CTO1'?'bcto1':'bcto2';
-    const lab   = p.account==='PEA'?'PEA':p.account==='CTO1'?'IBKR':'TR';
-    const isUSD = accCurrency(p.account) === 'USD';
-    h += `<tr>
+  positions.forEach((p,i)=>{
+    const badge=p.account==='PEA'?'bpea':p.account==='CTO1'?'bcto1':'bcto2';
+    const lab=p.account==='PEA'?'PEA':p.account==='CTO1'?'IBKR':'TR';
+    const isUSD=accCurrency(p.account)==='USD';
+    h+=`<tr>
       <td style="font-weight:600">${p.name} <span style="font-size:10px;color:#aaa">(${p.ticker})</span></td>
       <td><span class="badge ${badge}">${lab}</span></td>
-      <td style="font-size:11px">${p.qty < 1 ? p.qty.toFixed(4) : p.qty}</td>
-      <td>${isUSD ? usd(p.pru) : eur(p.pru)}</td>
+      <td style="font-size:11px">${p.qty<1?p.qty.toFixed(4):p.qty}</td>
+      <td>${isUSD?usd(p.pru):eur(p.pru)}</td>
       <td style="font-size:10px;color:#aaa">${isUSD?'USD':'EUR'}</td>
       <td><input type="text" value="${p.sector||''}" style="width:75px;font-size:11px" onchange="upd(${i},'sector',this.value)"></td>
       <td><input type="text" value="${p.geo||''}" style="width:65px;font-size:11px" onchange="upd(${i},'geo',this.value)"></td>
       <td><button onclick="delPos(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
     </tr>`;
   });
-  h += '</tbody></table>';
-  document.getElementById('mgr-tbl').innerHTML = h;
+  h+='</tbody></table>';
+  document.getElementById('mgr-tbl').innerHTML=h;
 }
 
 function populateTxSel(){
-  const s = document.getElementById('tx-tk'); if (!s) return;
-  const names = [...new Map(positions.map(p => [p.ticker, p.name])).entries()];
-  s.innerHTML = names.map(([t,n]) => `<option value="${t}">${n}</option>`).join('');
+  const s=document.getElementById('tx-tk'); if(!s) return;
+  const names=[...new Map(positions.map(p=>[p.ticker,p.name])).entries()];
+  s.innerHTML=names.map(([t,n])=>`<option value="${t}">${n}</option>`).join('');
 }
-
 function renderTx(){
-  if (!txs.length){ document.getElementById('tx-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucune transaction.</p>'; return; }
-  let h = `<table><thead><tr><th class="left">Date</th><th class="left">Titre</th><th>Type</th><th>Qté</th><th>Prix</th><th>Total</th><th>Note</th><th></th></tr></thead><tbody>`;
-  [...txs].reverse().forEach((t,i) => {
-    const ri = txs.length-1-i;
-    h += `<tr>
-      <td>${t.date||'—'}</td><td style="font-weight:600">${t.ticker}</td>
+  if(!txs.length){ document.getElementById('tx-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucune transaction.</p>'; return; }
+  let h=`<table><thead><tr><th class="left">Date</th><th class="left">Titre</th><th>Type</th><th>Qté</th><th>Prix</th><th>Total</th><th>Note</th><th></th></tr></thead><tbody>`;
+  [...txs].reverse().forEach((t,i)=>{
+    const ri=txs.length-1-i;
+    h+=`<tr><td>${t.date||'—'}</td><td style="font-weight:600">${t.ticker}</td>
       <td><span class="badge ${t.type==='buy'?'bcto1':'bpea'}">${t.type==='buy'?'Achat':'Vente'}</span></td>
       <td>${t.qty}</td><td>${eur(t.price)}</td>
       <td style="font-weight:600">${eur(t.qty*t.price)}</td>
@@ -546,48 +571,46 @@ function renderTx(){
       <td><button onclick="delTx(${ri})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
     </tr>`;
   });
-  h += '</tbody></table>';
-  document.getElementById('tx-tbl').innerHTML = h;
+  h+='</tbody></table>';
+  document.getElementById('tx-tbl').innerHTML=h;
 }
 
 function upd(i,f,v){ positions[i][f]=v; save(); }
 function delPos(i){ if(confirm('Supprimer cette ligne ?')){ positions.splice(i,1); save(); render(); } }
 function delTx(i){ txs.splice(i,1); save(); renderTx(); }
-
 function addPos(){
-  const tk = document.getElementById('a-tk').value.trim().toUpperCase();
-  const nm = document.getElementById('a-nm').value.trim() || tk;
-  const pr = parseFloat(document.getElementById('a-pr').value);
-  const qt = parseFloat(document.getElementById('a-qt').value);
-  const ac = document.getElementById('a-ac').value;
-  if (!tk || isNaN(pr) || isNaN(qt)) return;
-  positions.push({ ticker:tk, name:nm, qty:qt, pru:pr, account:ac,
-    sector: document.getElementById('a-se').value || 'Autre',
-    geo:    document.getElementById('a-ge').value || 'Autre' });
+  const tk=document.getElementById('a-tk').value.trim().toUpperCase();
+  const nm=document.getElementById('a-nm').value.trim()||tk;
+  const pr=parseFloat(document.getElementById('a-pr').value);
+  const qt=parseFloat(document.getElementById('a-qt').value);
+  const ac=document.getElementById('a-ac').value;
+  if(!tk||isNaN(pr)||isNaN(qt)) return;
+  positions.push({ticker:tk,name:nm,qty:qt,pru:pr,account:ac,
+    sector:document.getElementById('a-se').value||'Autre',
+    geo:document.getElementById('a-ge').value||'Autre'});
   save(); loadAll();
 }
-
 function addTx(){
-  const qty = parseFloat(document.getElementById('tx-q').value);
-  const pr  = parseFloat(document.getElementById('tx-p').value);
-  if (isNaN(qty) || isNaN(pr)) return;
-  txs.push({ ticker: document.getElementById('tx-tk').value, type: document.getElementById('tx-tp').value,
-    qty, price:pr, date: document.getElementById('tx-d').value, note: document.getElementById('tx-n').value.trim() });
+  const qty=parseFloat(document.getElementById('tx-q').value);
+  const pr=parseFloat(document.getElementById('tx-p').value);
+  if(isNaN(qty)||isNaN(pr)) return;
+  txs.push({ticker:document.getElementById('tx-tk').value,type:document.getElementById('tx-tp').value,
+    qty,price:pr,date:document.getElementById('tx-d').value,note:document.getElementById('tx-n').value.trim()});
   save(); renderTx();
 }
-
 function exportCSV(){
-  const h = 'Date,Ticker,Type,Quantité,Prix,Total,Note\n';
-  const rows = txs.map(t => `${t.date||''},${t.ticker},${t.type==='buy'?'Achat':'Vente'},${t.qty},${t.price},${(t.qty*t.price).toFixed(2)},${t.note||''}`).join('\n');
-  const b = new Blob([h+rows], {type:'text/csv;charset=utf-8;'});
-  const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='transactions.csv'; a.click(); URL.revokeObjectURL(u);
+  const h='Date,Ticker,Type,Quantité,Prix,Total,Note\n';
+  const rows=txs.map(t=>`${t.date||''},${t.ticker},${t.type==='buy'?'Achat':'Vente'},${t.qty},${t.price},${(t.qty*t.price).toFixed(2)},${t.note||''}`).join('\n');
+  const b=new Blob([h+rows],{type:'text/csv;charset=utf-8;'});
+  const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='transactions.csv'; a.click(); URL.revokeObjectURL(u);
 }
 
-function go(name, el){
-  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+function go(name,el){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('pane-'+name).classList.add('active'); el.classList.add('active');
-  if (name === 'repartition') renderRep();
+  if(name==='repartition') renderRep();
+  if(name==='gerer') renderManualPrices();
 }
 
 load(); loadAll();
