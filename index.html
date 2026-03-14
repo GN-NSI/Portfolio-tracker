@@ -224,7 +224,7 @@ const DEFAULTS = [
 ];
 
 // ─── STATE ────────────────────────────────────────────────────────
-let positions = [], prices = {}, fxUSD = 0.92, txs = [], charts2 = {}, expanded = new Set();
+let positions = [], prices = {}, let fxUSD = 0.92, fxJPY = 0.0062, fxKRW = 0.00068, txs = [], charts2 = {}, expanded = new Set();
 
 function accCurrency(account){ return account === 'CTO1' ? 'USD' : 'EUR'; }
 
@@ -250,12 +250,19 @@ async function fetchQuote(ticker){
 }
 
 async function fetchFX(){
-  try {
-    const r = await fetch(`${API_BASE}?symbol=USDEUR%3DX`);
-    if (!r.ok) return;
-    const d = await r.json();
-    if (d.price && d.price > 0) fxUSD = d.price;
-  } catch(e){}
+  const pairs = [
+    ['USDEUR=X', v => fxUSD = v],
+    ['JPYEUR=X', v => fxJPY = v],
+    ['KRWEUR=X', v => fxKRW = v],
+  ];
+  await Promise.all(pairs.map(async ([symbol, setter]) => {
+    try {
+      const r = await fetch(`${API_BASE}?symbol=${symbol}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.price && d.price > 0) setter(d.price);
+    } catch(e) {}
+  }));
 }
 
 async function loadAll(){
@@ -292,10 +299,10 @@ function setSt(c, t){ const e = document.getElementById('pst'); e.className = 's
 function getCoursEUR(pos){
   let p = prices[pos.ticker] || null;
   if (!p) return null;
-  // Les cours Yahoo sont dans la devise du marché
-  // CTO1 = US stocks cotés en USD → convertir
-  // CTO2 et PEA = EUR, JPY, KRW etc. → Yahoo retourne déjà dans la bonne devise
-  if (accCurrency(pos.account) === 'USD') p = p * fxUSD;
+  if (accCurrency(pos.account) === 'USD') return p * fxUSD;
+  // Actions cotées en devises étrangères sur CTO2
+  if (pos.ticker === '6857.T')    return p * fxJPY;
+  if (pos.ticker === '005930.KS') return p * fxKRW;
   return p;
 }
 
