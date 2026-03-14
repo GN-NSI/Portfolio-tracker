@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mon Portefeuille</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:14px}
+  .app{max-width:1200px;margin:0 auto;padding:1.5rem}
+  h1{font-size:20px;font-weight:600;margin-bottom:4px}
+  .sub{font-size:12px;color:#888}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
+  .btn{font-size:12px;padding:6px 14px;background:#fff;border:1px solid #ddd;border-radius:8px;cursor:pointer}
+  .btn:hover{background:#f0f0f0}
+  .btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+  .btn-primary:hover{background:#333}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:1.5rem}
+  .metric{background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #eee}
+  .mlabel{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .mval{font-size:20px;font-weight:600}
+  .msub{font-size:12px;margin-top:3px}
+  .pos{color:#16a34a}.neg{color:#dc2626}
+  .tabs{display:flex;gap:0;border-bottom:1px solid #eee;margin-bottom:1.5rem}
+  .tab{padding:9px 18px;font-size:13px;cursor:pointer;border:none;background:none;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:500}
+  .tab:hover{color:#1a1a1a}
+  .card{background:#fff;border-radius:12px;padding:1.25rem;border:1px solid #eee;margin-bottom:1rem}
+  .ctitle{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px}
+  .status{font-size:11px;padding:4px 10px;border-radius:6px;margin-bottom:10px;display:inline-block}
+  .sok{background:#dcfce7;color:#166534}.serr{background:#fee2e2;color:#991b1b}.sload{background:#f3f4f6;color:#6b7280}
+  .prog{height:3px;background:#eee;border-radius:2px;margin-bottom:10px;overflow:hidden}
+  .prog-fill{height:100%;background:#1a1a1a;border-radius:2px;transition:width .3s}
+  table{width:100%;font-size:12px;border-collapse:collapse}
+  th{font-size:11px;font-weight:500;color:#888;text-align:right;padding:6px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap}
+  th.left{text-align:left}
+  td{padding:8px 8px;border-bottom:1px solid #f9f9f9;text-align:right;white-space:nowrap}
+  td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  .main-row{cursor:pointer}.main-row:hover td{background:#fafafa}
+  .sub-row td{background:#fafafa;font-size:11px;color:#666}
+  .sub-row td:first-child{padding-left:26px}
+  .sub-row.hidden,.etf-row.hidden{display:none}
+  .etf-row td{background:#fafafa;font-size:11px;color:#888;font-style:italic}
+  .etf-row td:first-child{padding-left:26px}
+  .toggle{font-size:10px;margin-right:5px;display:inline-block;width:10px;text-align:center;color:#888}
+  .badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600}
+  .bpea{background:#dbeafe;color:#1e40af}
+  .bcto1{background:#dcfce7;color:#166534}
+  .bcto2{background:#fef3c7;color:#92400e}
+  .bar-bg{height:4px;background:#eee;border-radius:2px;overflow:hidden;width:50px;display:inline-block;vertical-align:middle;margin-right:4px}
+  .bar-fg{height:100%;border-radius:2px}
+  .pane{display:none}.pane.active{display:block}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .legend{font-size:12px}
+  .li{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  input,select{font-size:12px;padding:6px 9px;background:#fff;border:1px solid #ddd;border-radius:8px;color:#1a1a1a}
+  input:focus,select:focus{outline:none;border-color:#999}
+  .rform{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .warn{font-size:11px;color:#888;background:#f9f9f9;padding:7px 10px;border-radius:8px;margin-bottom:10px;line-height:1.5;border-left:3px solid #ddd}
+  .dev-tag{font-size:9px;color:#aaa;vertical-align:middle;margin-left:2px}
+  @media(max-width:600px){.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div>
+      <h1>Mon portefeuille</h1>
+      <p class="sub" id="upd">—</p>
+    </div>
+    <button class="btn btn-primary" onclick="loadAll()">↻ Actualiser</button>
+  </div>
+
+  <div class="metrics" id="mbar"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="go('positions',this)">Positions</button>
+    <button class="tab" onclick="go('repartition',this)">Répartition</button>
+    <button class="tab" onclick="go('historique',this)">Transactions</button>
+    <button class="tab" onclick="go('gerer',this)">Gérer</button>
+  </div>
+
+  <div id="pane-positions" class="pane active">
+    <div class="card">
+      <div class="ctitle">Vue consolidée — cliquer sur ▶ pour détail par compte</div>
+      <div id="pst" class="status sload">Chargement…</div>
+      <div id="pprog" class="prog" style="display:none"><div class="prog-fill" id="pfill" style="width:0%"></div></div>
+      <div style="overflow-x:auto"><div id="pos-tbl"></div></div>
+    </div>
+  </div>
+
+  <div id="pane-repartition" class="pane">
+    <div class="two-col">
+      <div class="card"><div class="ctitle">Par enveloppe</div><canvas id="cv-env" width="180" height="180" style="display:block;margin:0 auto 10px"></canvas><div id="lg-env" class="legend"></div></div>
+      <div class="card"><div class="ctitle">Zone géographique</div><canvas id="cv-geo" width="180" height="180" style="display:block;margin:0 auto 10px"></canvas><div id="lg-geo" class="legend"></div></div>
+    </div>
+    <div class="card"><div class="ctitle">Secteur</div><canvas id="cv-sec" width="400" height="160" style="display:block;margin:0 auto 10px;max-width:100%"></canvas><div id="lg-sec" class="legend" style="display:grid;grid-template-columns:1fr 1fr;gap:4px"></div></div>
+  </div>
+
+  <div id="pane-historique" class="pane">
+    <div class="card">
+      <div class="ctitle">Transactions</div>
+      <div id="tx-tbl"></div>
+      <div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:12px">
+        <p style="font-size:12px;font-weight:600;margin-bottom:6px">Ajouter</p>
+        <div class="rform">
+          <select id="tx-tk"></select>
+          <select id="tx-tp"><option value="buy">Achat</option><option value="sell">Vente</option></select>
+          <input type="number" id="tx-q" placeholder="Qté" style="width:75px" step="0.0001">
+          <input type="number" id="tx-p" placeholder="Prix" style="width:85px" step="0.01">
+          <input type="date" id="tx-d">
+          <input type="text" id="tx-n" placeholder="Note" style="width:110px">
+          <button class="btn" onclick="addTx()">+ Ajouter</button>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:right"><button class="btn" onclick="exportCSV()">↓ Export CSV</button></div>
+  </div>
+
+  <div id="pane-gerer" class="pane">
+    <div class="card">
+      <div class="ctitle">Toutes les lignes</div>
+      <div class="warn">PRU en devise originale : $ pour IBKR, € pour TR et PEA. Tout est converti en € dans les calculs.</div>
+      <div style="overflow-x:auto"><div id="mgr-tbl"></div></div>
+      <div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:12px">
+        <p style="font-size:12px;font-weight:600;margin-bottom:6px">Ajouter une ligne</p>
+        <div class="rform">
+          <input id="a-tk" placeholder="Ticker (ex: AAPL)" style="width:110px">
+          <input id="a-nm" placeholder="Nom" style="width:110px">
+          <input id="a-pr" type="number" placeholder="PRU" style="width:80px" step="0.01">
+          <input id="a-qt" type="number" placeholder="Qté" style="width:80px" step="0.0001">
+          <select id="a-ac"><option value="CTO1">IBKR ($)</option><option value="CTO2">TR (€)</option><option value="PEA">PEA (€)</option></select>
+          <input id="a-se" placeholder="Secteur" style="width:90px">
+          <input id="a-ge" placeholder="Zone géo" style="width:80px">
+          <button class="btn btn-primary" onclick="addPos()">+ Ajouter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────
+// URL de ton API Vercel — sera automatiquement relative une fois déployé
+const API_BASE = '/api/quote';
+
+const ETF_META = {
+  'FR0011550185': { yhTicker: 'CSP1.L',   name: 'ETF S&P 500' },
+  'FR0013412012': { yhTicker: 'AEET.PA',  name: 'ETF Tech Émergents' },
+  'FR0011882364': { yhTicker: 'WATS.PA',  name: 'ETF Eau' },
+};
+
+const YH_TICKER = {
+  '6857.T':    '6857.T',
+  '005930.KS': '005930.KS',
+  'BESI.AS':   'BESI.AS',
+};
+
+const ETF_HOLDINGS = {
+  'FR0011550185': [
+    {name:'Apple',ticker:'AAPL',pct:7.2,sector:'Tech',geo:'USA'},
+    {name:'Nvidia',ticker:'NVDA',pct:6.8,sector:'Tech',geo:'USA'},
+    {name:'Microsoft',ticker:'MSFT',pct:6.1,sector:'Tech',geo:'USA'},
+    {name:'Amazon',ticker:'AMZN',pct:4.1,sector:'Tech',geo:'USA'},
+    {name:'Meta',ticker:'META',pct:2.7,sector:'Tech',geo:'USA'},
+    {name:'Alphabet',ticker:'GOOGL',pct:3.9,sector:'Tech',geo:'USA'},
+    {name:'Broadcom',ticker:'AVGO',pct:2.1,sector:'Tech',geo:'USA'},
+    {name:'Tesla',ticker:'TSLA',pct:1.8,sector:'Consommation',geo:'USA'},
+    {name:'Berkshire',ticker:'BRK-B',pct:1.7,sector:'Finance',geo:'USA'},
+    {name:'JPMorgan',ticker:'JPM',pct:1.4,sector:'Finance',geo:'USA'},
+    {name:'Eli Lilly',ticker:'LLY',pct:1.3,sector:'Santé',geo:'USA'},
+    {name:'Visa',ticker:'V',pct:0.9,sector:'Finance',geo:'USA'},
+    {name:'Exxon',ticker:'XOM',pct:1.1,sector:'Énergie',geo:'USA'},
+  ],
+  'FR0013412012': [
+    {name:'TSMC',ticker:'TSM',pct:29.5,sector:'Tech',geo:'Asie'},
+    {name:'Samsung',ticker:'005930.KS',pct:11.2,sector:'Tech',geo:'Asie'},
+    {name:'Tencent',ticker:'0700.HK',pct:7.4,sector:'Tech',geo:'Chine'},
+    {name:'Alibaba',ticker:'BABA',pct:5.8,sector:'Tech',geo:'Chine'},
+    {name:'SK Hynix',ticker:'000660.KS',pct:4.1,sector:'Tech',geo:'Asie'},
+    {name:'Infosys',ticker:'INFY',pct:3.2,sector:'Tech',geo:'Inde'},
+    {name:'Meituan',ticker:'3690.HK',pct:2.9,sector:'Tech',geo:'Chine'},
+    {name:'Mediatek',ticker:'2454.TW',pct:2.7,sector:'Tech',geo:'Asie'},
+    {name:'Baidu',ticker:'BIDU',pct:2.1,sector:'Tech',geo:'Chine'},
+  ],
+  'FR0011882364': [
+    {name:'Xylem',ticker:'XYL',pct:8.1,sector:'Eau/Infra',geo:'USA'},
+    {name:'Veolia',ticker:'VIE.PA',pct:7.4,sector:'Eau/Infra',geo:'Europe'},
+    {name:'Geberit',ticker:'GEBN.SW',pct:6.8,sector:'Eau/Infra',geo:'Europe'},
+    {name:'Pentair',ticker:'PNR',pct:6.2,sector:'Eau/Infra',geo:'USA'},
+    {name:'Danaher',ticker:'DHR',pct:5.9,sector:'Santé/Eau',geo:'USA'},
+    {name:'Watts Water',ticker:'WTS',pct:3.8,sector:'Eau/Infra',geo:'USA'},
+    {name:'A.O. Smith',ticker:'AOS',pct:3.2,sector:'Eau/Infra',geo:'USA'},
+  ]
+};
+
+const DEFAULTS = [
+  {ticker:'AMZN',name:'Amazon',qty:2,pru:215.64,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'BKNG',name:'Booking',qty:0.005,pru:3930.52,account:'CTO1',sector:'Consommation',geo:'USA'},
+  {ticker:'COIN',name:'Coinbase',qty:1,pru:140.45,account:'CTO1',sector:'Finance',geo:'USA'},
+  {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:311.58,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'LYFT',name:'Lyft',qty:10,pru:18.44,account:'CTO1',sector:'Consommation',geo:'USA'},
+  {ticker:'MSFT',name:'Microsoft',qty:1.2,pru:435.21,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'NVDA',name:'Nvidia',qty:5,pru:178.35,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'NVTS',name:'Navitas Semi',qty:20,pru:9.09,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'RDDT',name:'Reddit',qty:3,pru:139.84,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'TSM',name:'TSMC',qty:1,pru:295.64,account:'CTO1',sector:'Tech',geo:'Asie'},
+  {ticker:'V',name:'Visa',qty:0.75,pru:327.4,account:'CTO1',sector:'Finance',geo:'USA'},
+  {ticker:'6857.T',name:'Advantest',qty:3,pru:109.98,account:'CTO2',sector:'Tech',geo:'Asie'},
+  {ticker:'005930.KS',name:'Samsung',qty:0.124891,pru:1149,account:'CTO2',sector:'Tech',geo:'Asie'},
+  {ticker:'GOOGL',name:'Alphabet',qty:1,pru:148.92,account:'CTO2',sector:'Tech',geo:'USA'},
+  {ticker:'TSM',name:'TSMC',qty:0.609037,pru:254.5,account:'CTO2',sector:'Tech',geo:'Asie'},
+  {ticker:'COIN',name:'Coinbase',qty:1,pru:167.56,account:'CTO2',sector:'Finance',geo:'USA'},
+  {ticker:'UBER',name:'Uber',qty:2.5,pru:68.7,account:'CTO2',sector:'Consommation',geo:'USA'},
+  {ticker:'NVDA',name:'Nvidia',qty:1,pru:121.94,account:'CTO2',sector:'Tech',geo:'USA'},
+  {ticker:'SPGI',name:'S&P Global',qty:0.351957,pru:340.95,account:'CTO2',sector:'Finance',geo:'USA'},
+  {ticker:'FR0011550185',name:'ETF S&P 500',qty:42,pru:26.76,account:'PEA',sector:'Multi',geo:'USA'},
+  {ticker:'FR0013412012',name:'ETF Tech Émergents',qty:22,pru:29.92,account:'PEA',sector:'Tech',geo:'Émergents'},
+  {ticker:'FR0011882364',name:'ETF Eau',qty:8,pru:31.62,account:'PEA',sector:'Eau/Infra',geo:'Multi'},
+  {ticker:'BESI.AS',name:'BESI',qty:1,pru:171.86,account:'PEA',sector:'Tech',geo:'Europe'},
+];
+
+// ─── STATE ────────────────────────────────────────────────────────
+let positions = [], prices = {}, fxUSD = 0.92, txs = [], charts2 = {}, expanded = new Set();
+
+function accCurrency(account){ return account === 'CTO1' ? 'USD' : 'EUR'; }
+
+function load(){
+  try {
+    const p = localStorage.getItem('pfv_pos'); positions = p ? JSON.parse(p) : JSON.parse(JSON.stringify(DEFAULTS));
+    const t = localStorage.getItem('pfv_tx');  txs = t ? JSON.parse(t) : [];
+  } catch(e){ positions = JSON.parse(JSON.stringify(DEFAULTS)); txs = []; }
+}
+function save(){
+  try { localStorage.setItem('pfv_pos', JSON.stringify(positions)); localStorage.setItem('pfv_tx', JSON.stringify(txs)); } catch(e){}
+}
+
+// ─── FETCH via proxy Vercel ───────────────────────────────────────
+async function fetchQuote(ticker){
+  const yhTicker = ETF_META[ticker]?.yhTicker || YH_TICKER[ticker] || ticker;
+  try {
+    const r = await fetch(`${API_BASE}?symbol=${encodeURIComponent(yhTicker)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.price || null;
+  } catch(e){ return null; }
+}
+
+async function fetchFX(){
+  try {
+    const r = await fetch(`${API_BASE}?symbol=USDEUR%3DX`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.price && d.price > 0) fxUSD = d.price;
+  } catch(e){}
+}
+
+async function loadAll(){
+  document.getElementById('upd').textContent = 'Actualisation en cours…';
+  setSt('sload', 'Récupération des cours…');
+  document.getElementById('pprog').style.display = 'block';
+  document.getElementById('pfill').style.width = '3%';
+
+  await fetchFX();
+
+  const unique = [...new Map(positions.map(p => [p.ticker, p])).values()];
+  let done = 0;
+
+  await Promise.all(unique.map(async pos => {
+    const p = await fetchQuote(pos.ticker);
+    if (p && p > 0) prices[pos.ticker] = p;
+    done++;
+    document.getElementById('pfill').style.width = Math.round((done / unique.length) * 100) + '%';
+    renderMetrics(); renderPositions();
+  }));
+
+  document.getElementById('pprog').style.display = 'none';
+  const n = Object.keys(prices).length, now = new Date().toLocaleTimeString('fr-FR');
+  setSt(n > 0 ? 'sok' : 'serr',
+    n > 0 ? `${n}/${unique.length} cours chargés — ${now} — 1 USD = ${fxUSD.toFixed(4)} EUR`
+           : 'Erreur de chargement. Vérifier la connexion.');
+  document.getElementById('upd').textContent = 'Mis à jour : ' + now;
+  render();
+}
+
+function setSt(c, t){ const e = document.getElementById('pst'); e.className = 'status ' + c; e.textContent = t; }
+
+// ─── CALCULS ─────────────────────────────────────────────────────
+function getCoursEUR(pos){
+  let p = prices[pos.ticker] || null;
+  if (!p) return null;
+  // Les cours Yahoo sont dans la devise du marché
+  // CTO1 = US stocks cotés en USD → convertir
+  // CTO2 et PEA = EUR, JPY, KRW etc. → Yahoo retourne déjà dans la bonne devise
+  if (accCurrency(pos.account) === 'USD') p = p * fxUSD;
+  return p;
+}
+
+function getPRUeur(pos){
+  return accCurrency(pos.account) === 'USD' ? pos.pru * fxUSD : pos.pru;
+}
+
+function mvEUR(pos){
+  const c = getCoursEUR(pos);
+  return pos.qty * (c !== null ? c : getPRUeur(pos));
+}
+
+function pnlEUR(pos){
+  const c = getCoursEUR(pos);
+  if (!c) return 0;
+  return pos.qty * (c - getPRUeur(pos));
+}
+
+function pnlPct(pos){
+  const inv = pos.qty * getPRUeur(pos);
+  return inv ? (pnlEUR(pos) / inv) * 100 : 0;
+}
+
+function eur(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+function usd(v){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
+function fpct(v){ return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
+
+// ─── CONSOLIDATION ────────────────────────────────────────────────
+function consolidate(){
+  const map = {};
+  positions.forEach(pos => {
+    const k = pos.ticker;
+    if (!map[k]) map[k] = { ticker:k, name:pos.name, lines:[], sector:pos.sector, geo:pos.geo };
+    map[k].lines.push(pos);
+  });
+  return Object.values(map).map(g => {
+    const totalInvEUR = g.lines.reduce((s,p) => s + p.qty * getPRUeur(p), 0);
+    const totalQty    = g.lines.reduce((s,p) => s + p.qty, 0);
+    const pruMoyEUR   = totalQty > 0 ? totalInvEUR / totalQty : 0;
+    const totalMV     = g.lines.reduce((s,p) => s + mvEUR(p), 0);
+    const pnl         = totalMV - totalInvEUR;
+    const pnlPct      = totalInvEUR > 0 ? (pnl / totalInvEUR) * 100 : 0;
+    return { ...g, totalQty, pruMoyEUR, totalInvEUR, totalMV, pnl, pnlPct, isETF: !!ETF_META[g.ticker] };
+  });
+}
+
+function etfExpo(ticker, etfMV){
+  const h = ETF_HOLDINGS[ticker]; if (!h) return [];
+  const rows = h.map(e => ({ name:e.name, ticker:e.ticker, pct:e.pct, val:etfMV*(e.pct/100) }));
+  const cov = h.reduce((s,e) => s + e.pct, 0);
+  if (cov < 100) rows.push({ name:'Autres composantes', ticker:'—', pct:100-cov, val:etfMV*((100-cov)/100) });
+  return rows;
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────
+function render(){
+  renderMetrics(); renderPositions(); renderManage(); populateTxSel(); renderTx();
+  if (document.getElementById('pane-repartition').classList.contains('active')) renderRep();
+}
+
+function renderMetrics(){
+  let tot=0, inv=0, pea=0, c1=0, c2=0;
+  positions.forEach(p => {
+    const m = mvEUR(p); tot += m; inv += p.qty * getPRUeur(p);
+    if (p.account==='PEA') pea+=m; else if (p.account==='CTO1') c1+=m; else c2+=m;
+  });
+  const g = tot-inv, gp = inv ? (g/inv)*100 : 0;
+  document.getElementById('mbar').innerHTML = `
+    <div class="metric"><div class="mlabel">Valeur totale</div><div class="mval">${eur(tot)}</div></div>
+    <div class="metric"><div class="mlabel">Investi</div><div class="mval">${eur(inv)}</div></div>
+    <div class="metric"><div class="mlabel">PV / MV latente</div><div class="mval ${g>=0?'pos':'neg'}">${eur(g)}</div><div class="msub ${g>=0?'pos':'neg'}">${fpct(gp)}</div></div>
+    <div class="metric"><div class="mlabel">PEA</div><div class="mval">${eur(pea)}</div></div>
+    <div class="metric"><div class="mlabel">CTO IBKR</div><div class="mval">${eur(c1)}</div></div>
+    <div class="metric"><div class="mlabel">CTO TR</div><div class="mval">${eur(c2)}</div></div>`;
+}
+
+function renderPositions(){
+  const groups = consolidate().sort((a,b) => b.totalMV - a.totalMV);
+  const tot = groups.reduce((s,g) => s + g.totalMV, 0);
+  let h = `<table><colgroup>
+    <col style="width:18%"><col style="width:8%"><col style="width:11%"><col style="width:11%">
+    <col style="width:11%"><col style="width:11%"><col style="width:8%"><col style="width:11%"><col style="width:11%">
+  </colgroup><thead><tr>
+    <th class="left">Titre</th><th>Qté</th><th>PRU moy. €</th><th>Cours €</th>
+    <th>Val. marché</th><th>PV/MV €</th><th>PV%</th><th>Poids</th><th>Comptes</th>
+  </tr></thead><tbody>`;
+
+  groups.forEach((g, gi) => {
+    const w = tot ? (g.totalMV/tot)*100 : 0;
+    const cl = g.pnl >= 0 ? 'pos' : 'neg';
+    const cp = getCoursEUR(g.lines[0]);
+    const isOpen = expanded.has(g.ticker);
+    const multiLine = g.lines.length > 1 || g.isETF;
+    const arrow = multiLine ? `<span class="toggle" id="tog-${gi}">${isOpen?'▼':'▶'}</span>` : `<span class="toggle"></span>`;
+    const badges = [...new Set(g.lines.map(l=>l.account))].map(a =>
+      `<span class="badge ${a==='PEA'?'bpea':a==='CTO1'?'bcto1':'bcto2'}">${a==='PEA'?'PEA':a==='CTO1'?'IBKR':'TR'}</span>`
+    ).join(' ');
+
+    h += `<tr class="main-row" onclick="toggleRow(${gi},'${g.ticker}')">
+      <td style="font-weight:600">${arrow}${g.name||g.ticker}</td>
+      <td>${g.totalQty < 1 ? g.totalQty.toFixed(3) : g.totalQty % 1 === 0 ? g.totalQty : g.totalQty.toFixed(3)}</td>
+      <td>${eur(g.pruMoyEUR)}</td>
+      <td>${cp ? eur(cp) : '<span style="color:#aaa;font-size:10px">PRU</span>'}</td>
+      <td style="font-weight:600">${eur(g.totalMV)}</td>
+      <td class="${cl}" style="font-weight:600">${eur(g.pnl)}</td>
+      <td class="${cl}">${fpct(g.pnlPct)}</td>
+      <td><div style="display:flex;align-items:center;gap:3px">
+        <div class="bar-bg"><div class="bar-fg" style="width:${Math.min(w*5,100)}%;background:#1a1a1a"></div></div>
+        <span style="font-size:10px;color:#999">${w.toFixed(1)}%</span>
+      </div></td>
+      <td>${badges}</td>
+    </tr>`;
+
+    if (g.lines.length > 1) {
+      g.lines.forEach(line => {
+        const lmv = mvEUR(line), lpnl = pnlEUR(line), lpruEUR = getPRUeur(line), lcp = getCoursEUR(line);
+        const lpnlPct = line.qty * lpruEUR > 0 ? (lpnl/(line.qty*lpruEUR))*100 : 0;
+        const lcl = lpnl >= 0 ? 'pos' : 'neg';
+        const isUSD = accCurrency(line.account) === 'USD';
+        const badge = `<span class="badge ${line.account==='PEA'?'bpea':line.account==='CTO1'?'bcto1':'bcto2'}">${line.account==='PEA'?'PEA':line.account==='CTO1'?'IBKR':'TR'}</span>`;
+        const pruDisp = isUSD ? `${usd(line.pru)} <span class="dev-tag">(${eur(lpruEUR)})</span>` : eur(line.pru);
+        h += `<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
+          <td>${badge} ${line.qty < 1 ? line.qty.toFixed(4) : line.qty} titres</td>
+          <td>—</td><td>${pruDisp}</td>
+          <td>${lcp ? eur(lcp) : '—'}</td>
+          <td>${eur(lmv)}</td>
+          <td class="${lcl}">${eur(lpnl)}</td>
+          <td class="${lcl}">${fpct(lpnlPct)}</td>
+          <td colspan="2" style="color:#aaa">ligne individuelle</td>
+        </tr>`;
+      });
+    }
+
+    if (g.isETF) {
+      const expo = etfExpo(g.ticker, g.totalMV);
+      h += `<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
+        <td colspan="9" style="font-weight:600;font-size:11px;padding:5px 8px 2px 26px;color:#666">Composition estimée :</td>
+      </tr>`;
+      expo.forEach(e => {
+        h += `<tr class="etf-row ${isOpen?'':'hidden'}" data-group="${gi}">
+          <td>${e.name} <span style="color:#aaa;font-size:10px">${e.ticker}</span></td>
+          <td colspan="3" style="color:#aaa">${e.pct.toFixed(1)}% de l'ETF</td>
+          <td>${eur(e.val)}</td>
+          <td colspan="4" style="color:#aaa;font-size:10px">exposition indirecte</td>
+        </tr>`;
+      });
+    }
+  });
+
+  h += '</tbody></table>';
+  document.getElementById('pos-tbl').innerHTML = h;
+}
+
+function toggleRow(gi, ticker){
+  if (expanded.has(ticker)) expanded.delete(ticker); else expanded.add(ticker);
+  const tog = document.getElementById('tog-'+gi);
+  if (tog) tog.textContent = expanded.has(ticker) ? '▼' : '▶';
+  document.querySelectorAll(`[data-group="${gi}"]`).forEach(row => {
+    row.classList.toggle('hidden', !expanded.has(ticker));
+  });
+}
+
+function pie(id, labels, data, colors){
+  const ctx = document.getElementById(id); if (!ctx) return;
+  if (charts2[id]) charts2[id].destroy();
+  charts2[id] = new Chart(ctx, {
+    type:'doughnut',
+    data:{labels, datasets:[{data, backgroundColor:colors, borderWidth:0}]},
+    options:{responsive:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed.toFixed(1)}%`}}}, cutout:'62%'}
+  });
+}
+function mkLegend(id, items){
+  document.getElementById(id).innerHTML = items.map(([l,c,v]) =>
+    `<div class="li"><div class="dot" style="background:${c}"></div><span style="flex:1">${l}</span><span style="font-weight:600">${v.toFixed(1)}%</span></div>`
+  ).join('');
+}
+
+function renderRep(){
+  const tot = positions.reduce((s,p) => s+mvEUR(p), 0); if (!tot) return;
+  const env = {PEA:0,CTO1:0,CTO2:0}, geo = {}, sec = {};
+  positions.forEach(p => {
+    const m = mvEUR(p);
+    env[p.account] = (env[p.account]||0)+m;
+    geo[p.geo||'Autre'] = (geo[p.geo||'Autre']||0)+m;
+    sec[p.sector||'Autre'] = (sec[p.sector||'Autre']||0)+m;
+  });
+  const ep = v => (v/tot)*100;
+  const GC = ['#1a1a1a','#2563eb','#dc2626','#d97706','#16a34a','#9333ea','#0891b2','#be185d'];
+  pie('cv-env', ['PEA','CTO IBKR','CTO TR'], [ep(env.PEA),ep(env.CTO1),ep(env.CTO2)], ['#2563eb','#16a34a','#d97706']);
+  mkLegend('lg-env', [['PEA','#2563eb',ep(env.PEA)],['CTO IBKR','#16a34a',ep(env.CTO1)],['CTO TR','#d97706',ep(env.CTO2)]]);
+  const gk = Object.keys(geo).sort((a,b) => geo[b]-geo[a]);
+  pie('cv-geo', gk, gk.map(k=>ep(geo[k])), GC.slice(0,gk.length));
+  mkLegend('lg-geo', gk.map((k,i) => [k, GC[i]||'#888', ep(geo[k])]));
+  const sk = Object.keys(sec).sort((a,b) => sec[b]-sec[a]);
+  pie('cv-sec', sk, sk.map(k=>ep(sec[k])), GC.slice(0,sk.length));
+  document.getElementById('lg-sec').innerHTML = sk.map((k,i) =>
+    `<div class="li"><div class="dot" style="background:${GC[i]||'#888'}"></div><span style="flex:1">${k}</span><span style="font-weight:600">${ep(sec[k]).toFixed(1)}%</span></div>`
+  ).join('');
+}
+
+function renderManage(){
+  let h = `<table><thead><tr>
+    <th class="left">Titre</th><th>Cpte</th><th>Qté</th><th>PRU (devise orig.)</th><th>Dev.</th><th>Secteur</th><th>Zone</th><th></th>
+  </tr></thead><tbody>`;
+  positions.forEach((p,i) => {
+    const badge = p.account==='PEA'?'bpea':p.account==='CTO1'?'bcto1':'bcto2';
+    const lab   = p.account==='PEA'?'PEA':p.account==='CTO1'?'IBKR':'TR';
+    const isUSD = accCurrency(p.account) === 'USD';
+    h += `<tr>
+      <td style="font-weight:600">${p.name} <span style="font-size:10px;color:#aaa">(${p.ticker})</span></td>
+      <td><span class="badge ${badge}">${lab}</span></td>
+      <td style="font-size:11px">${p.qty < 1 ? p.qty.toFixed(4) : p.qty}</td>
+      <td>${isUSD ? usd(p.pru) : eur(p.pru)}</td>
+      <td style="font-size:10px;color:#aaa">${isUSD?'USD':'EUR'}</td>
+      <td><input type="text" value="${p.sector||''}" style="width:75px;font-size:11px" onchange="upd(${i},'sector',this.value)"></td>
+      <td><input type="text" value="${p.geo||''}" style="width:65px;font-size:11px" onchange="upd(${i},'geo',this.value)"></td>
+      <td><button onclick="delPos(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
+    </tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('mgr-tbl').innerHTML = h;
+}
+
+function populateTxSel(){
+  const s = document.getElementById('tx-tk'); if (!s) return;
+  const names = [...new Map(positions.map(p => [p.ticker, p.name])).entries()];
+  s.innerHTML = names.map(([t,n]) => `<option value="${t}">${n}</option>`).join('');
+}
+
+function renderTx(){
+  if (!txs.length){ document.getElementById('tx-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucune transaction.</p>'; return; }
+  let h = `<table><thead><tr><th class="left">Date</th><th class="left">Titre</th><th>Type</th><th>Qté</th><th>Prix</th><th>Total</th><th>Note</th><th></th></tr></thead><tbody>`;
+  [...txs].reverse().forEach((t,i) => {
+    const ri = txs.length-1-i;
+    h += `<tr>
+      <td>${t.date||'—'}</td><td style="font-weight:600">${t.ticker}</td>
+      <td><span class="badge ${t.type==='buy'?'bcto1':'bpea'}">${t.type==='buy'?'Achat':'Vente'}</span></td>
+      <td>${t.qty}</td><td>${eur(t.price)}</td>
+      <td style="font-weight:600">${eur(t.qty*t.price)}</td>
+      <td style="color:#aaa;font-size:11px">${t.note||''}</td>
+      <td><button onclick="delTx(${ri})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
+    </tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('tx-tbl').innerHTML = h;
+}
+
+function upd(i,f,v){ positions[i][f]=v; save(); }
+function delPos(i){ if(confirm('Supprimer cette ligne ?')){ positions.splice(i,1); save(); render(); } }
+function delTx(i){ txs.splice(i,1); save(); renderTx(); }
+
+function addPos(){
+  const tk = document.getElementById('a-tk').value.trim().toUpperCase();
+  const nm = document.getElementById('a-nm').value.trim() || tk;
+  const pr = parseFloat(document.getElementById('a-pr').value);
+  const qt = parseFloat(document.getElementById('a-qt').value);
+  const ac = document.getElementById('a-ac').value;
+  if (!tk || isNaN(pr) || isNaN(qt)) return;
+  positions.push({ ticker:tk, name:nm, qty:qt, pru:pr, account:ac,
+    sector: document.getElementById('a-se').value || 'Autre',
+    geo:    document.getElementById('a-ge').value || 'Autre' });
+  save(); loadAll();
+}
+
+function addTx(){
+  const qty = parseFloat(document.getElementById('tx-q').value);
+  const pr  = parseFloat(document.getElementById('tx-p').value);
+  if (isNaN(qty) || isNaN(pr)) return;
+  txs.push({ ticker: document.getElementById('tx-tk').value, type: document.getElementById('tx-tp').value,
+    qty, price:pr, date: document.getElementById('tx-d').value, note: document.getElementById('tx-n').value.trim() });
+  save(); renderTx();
+}
+
+function exportCSV(){
+  const h = 'Date,Ticker,Type,Quantité,Prix,Total,Note\n';
+  const rows = txs.map(t => `${t.date||''},${t.ticker},${t.type==='buy'?'Achat':'Vente'},${t.qty},${t.price},${(t.qty*t.price).toFixed(2)},${t.note||''}`).join('\n');
+  const b = new Blob([h+rows], {type:'text/csv;charset=utf-8;'});
+  const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='transactions.csv'; a.click(); URL.revokeObjectURL(u);
+}
+
+function go(name, el){
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('pane-'+name).classList.add('active'); el.classList.add('active');
+  if (name === 'repartition') renderRep();
+}
+
+load(); loadAll();
+</script>
+</body>
+</html>
