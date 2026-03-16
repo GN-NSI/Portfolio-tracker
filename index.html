@@ -133,13 +133,22 @@ input:focus,select:focus{outline:none;border-color:#999}
       <div style="overflow-x:auto"><div id="perf-pv-tbl"></div></div>
     </div>
 
-    <!-- Graphique courbe valeur -->
+    <!-- Graphique 1 : valeur + versements -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="ctitle" style="margin-bottom:0">Évolution de la valeur du portefeuille</div>
-        <span style="font-size:11px;color:#aaa">Basé sur les snapshots saisis</span>
+        <span style="font-size:11px;color:#aaa">Noir = valeur · Bleu pointillé = versements cumulés</span>
       </div>
       <canvas id="cv-perf" height="80"></canvas>
+    </div>
+
+    <!-- Graphique 2 : performance % -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="ctitle" style="margin-bottom:0">Performance % cumulée dans le temps</div>
+        <span style="font-size:11px;color:#aaa">(valeur − versements cumulés) / versements cumulés</span>
+      </div>
+      <canvas id="cv-perf-pct" height="80"></canvas>
     </div>
 
     <!-- Snapshots -->
@@ -500,7 +509,7 @@ let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
 let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
 // Liquidités saisies manuellement (persistées)
-let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:404.41,CTO2:1827.37,PEA:2418.53}));
+let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:404.41,CTO2:5.02,PEA:32.81}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
 
@@ -692,176 +701,187 @@ function etfExpo(ticker,etfMV){
 }
 
 // ── PERFORMANCE — CALCULS ──────────────────────────────────────────
-
-// PV réalisée par ticker depuis l'historique des transactions
 function computeRealizedPnL(){
-  // On calcule pour chaque ticker : total encaissé (ventes) - total payé (achats sur les lots vendus)
-  // Méthode FIFO simplifiée
-  const result={}; // ticker → {realized, costOfSold}
-
-  // Grouper par ticker
   const byTicker={};
-  txs.forEach(t=>{
-    if(!byTicker[t.ticker]) byTicker[t.ticker]=[];
-    byTicker[t.ticker].push({...t});
-  });
-
+  txs.forEach(t=>{if(!byTicker[t.ticker])byTicker[t.ticker]=[];byTicker[t.ticker].push({...t});});
+  const result={};
   Object.entries(byTicker).forEach(([ticker,txList])=>{
-    // Trier par date
     const sorted=[...txList].sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const lots=[]; // FIFO queue : {qty, price}
-    let realized=0;
-
+    const lots=[];let realized=0;
     sorted.forEach(tx=>{
-      if(tx.type==='buy'){
-        lots.push({qty:tx.qty,price:tx.price});
-      } else if(tx.type==='sell'){
-        let remaining=tx.qty;
-        const salePrice=tx.price;
-        while(remaining>0.000001&&lots.length>0){
-          const lot=lots[0];
-          const consumed=Math.min(lot.qty,remaining);
-          realized+=consumed*(salePrice-lot.price);
-          lot.qty-=consumed;
-          remaining-=consumed;
-          if(lot.qty<0.000001) lots.shift();
+      if(tx.type==='buy'){lots.push({qty:tx.qty,price:tx.price});}
+      else if(tx.type==='sell'){
+        let rem=tx.qty;
+        while(rem>0.000001&&lots.length>0){
+          const lot=lots[0];const c=Math.min(lot.qty,rem);
+          realized+=c*(tx.price-lot.price);lot.qty-=c;rem-=c;
+          if(lot.qty<0.000001)lots.shift();
         }
       }
     });
-    if(realized!==0) result[ticker]={realized};
+    if(realized!==0)result[ticker]={realized};
   });
   return result;
 }
 
-// Valeur totale actuelle du portefeuille
-function totalMV(){
-  return positions.reduce((s,p)=>s+mvEUR(p),0);
-}
+function totalMV(){return positions.reduce((s,p)=>s+mvEUR(p),0);}
+function totalVerse(){return versements.reduce((s,v)=>s+v.amount,0);}
 
-// Calcul TWR à partir des snapshots
-// TWR = product of sub-period returns
-// sub-period return = V_fin / V_deb_ajusté_flux - 1
-function computeTWR(fromDate){
-  if(!snapshots.length) return null;
-
+// ── TWR : produit des sous-périodes en neutralisant les flux ──────
+function computeTWR(fromDateStr){
+  if(!snapshots.length||!versements.length) return null;
+  const fromDate=new Date(fromDateStr);
+  const cur=totalMV();
   const now=new Date();
-  const from=new Date(fromDate);
-  const currentVal=totalMV();
 
-  // Trier les snapshots
-  const sorted=[...snapshots]
-    .map(s=>({...s,d:new Date(s.date)}))
-    .filter(s=>s.d>=from)
-    .sort((a,b)=>a.d-b.d);
+  // Construire les points de la période : snapshots + point actuel
+  const snapsInPeriod=[...snapshots]
+    .map(s=>({date:new Date(s.date),value:s.value}))
+    .filter(s=>s.date>=fromDate)
+    .sort((a,b)=>a.date-b.date);
 
-  if(!sorted.length){
-    // Pas de snapshot dans la période → perf simple
-    return null;
-  }
-
-  // Trouver le snapshot de référence juste avant fromDate
-  const before=[...snapshots]
-    .map(s=>({...s,d:new Date(s.date)}))
-    .filter(s=>s.d<from)
-    .sort((a,b)=>b.d-a.d);
-
-  const startSnap=before.length?before[0]:sorted[0];
+  // Snapshot de départ = le plus proche avant fromDate
+  const startSnaps=[...snapshots]
+    .map(s=>({date:new Date(s.date),value:s.value}))
+    .filter(s=>s.date<fromDate)
+    .sort((a,b)=>b.date-a.date);
+  const startSnap=startSnaps[0]||snapsInPeriod[0];
   if(!startSnap) return null;
 
-  // Points : [startSnap, ...snapshots in period, current]
-  const points=[
-    {val:startSnap.value,d:new Date(startSnap.date)},
-    ...sorted.map(s=>({val:s.value,d:s.d})),
-    {val:currentVal,d:now}
+  const allPoints=[
+    {date:startSnap.date,value:startSnap.value},
+    ...snapsInPeriod,
+    {date:now,value:cur}
   ];
 
-  // TWR = produit des rendements de sous-périodes
+  // Versements dans la période (après le point de départ)
+  const versInPeriod=versements
+    .map(v=>({date:new Date(v.date),amount:v.amount}))
+    .filter(v=>v.date>startSnap.date)
+    .sort((a,b)=>a.date-b.date);
+
+  // TWR : pour chaque sous-période entre deux snapshots consécutifs,
+  // ajuster la valeur de départ par les versements intervenus entre les deux
   let twr=1;
-  for(let i=1;i<points.length;i++){
-    if(points[i-1].val>0){
-      twr*=(points[i].val/points[i-1].val);
-    }
+  for(let i=1;i<allPoints.length;i++){
+    const vDebut=allPoints[i-1].value;
+    const vFin=allPoints[i].value;
+    // Versements entre les deux dates
+    const flux=versInPeriod
+      .filter(v=>v.date>allPoints[i-1].date&&v.date<=allPoints[i].date)
+      .reduce((s,v)=>s+v.amount,0);
+    const base=vDebut+flux;
+    if(base>0) twr*=(vFin/base);
   }
-  return (twr-1)*100;
+  return(twr-1)*100;
 }
 
-// Perf simple (pas de snapshot requis) : utilise valeur actuelle vs valeur à la date
-function computeSimplePerf(fromDate){
-  // Cherche le snapshot le plus proche de la date
-  const sorted=[...snapshots]
-    .map(s=>({...s,d:new Date(s.date)}))
-    .filter(s=>s.d<=new Date(fromDate))
-    .sort((a,b)=>b.d-a.d);
-  if(!sorted.length) return null;
-  const ref=sorted[0].value;
+// ── Perf simple : (valeur - versements cumulés) / versements cumulés ──
+function perfSimple(fromDateStr){
+  const fromDate=new Date(fromDateStr);
   const cur=totalMV();
-  return ((cur-ref)/ref)*100;
+  // Snap le plus proche avant/à la date de référence
+  const snap=[...snapshots]
+    .map(s=>({date:new Date(s.date),value:s.value}))
+    .filter(s=>s.date<=fromDate)
+    .sort((a,b)=>b.date-a.date)[0];
+  if(!snap) return null;
+  // Versements depuis ce snapshot
+  const versDepuis=versements
+    .filter(v=>new Date(v.date)>snap.date)
+    .reduce((s,v)=>s+v.amount,0);
+  const base=snap.value+versDepuis;
+  if(!base) return null;
+  return((cur-base)/base)*100;
 }
 
-function getDateNDaysAgo(n){
-  const d=new Date();d.setDate(d.getDate()-n);
-  return d.toISOString().split('T')[0];
+function perfAllTimeSimple(){
+  const cur=totalMV();
+  const tv=totalVerse();
+  if(!tv) return null;
+  return((cur-tv)/tv)*100;
 }
-function getYTDDate(){
-  return new Date().getFullYear()+'-01-01';
-}
-function get1WeekAgo(){return getDateNDaysAgo(7);}
-function get1MonthAgo(){return getDateNDaysAgo(30);}
+
+function getDateNDaysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
+function getYTDDate(){return new Date().getFullYear()+'-01-01';}
 
 // ── PERFORMANCE — RENDER ───────────────────────────────────────────
+let perfChartVal=null,perfChartPct=null;
+
 function renderPerformance(){
   renderPerfCards();
   renderPerfPvTable();
-  renderPerfChart();
+  renderPerfChartVal();
+  renderPerfChartPct();
   renderSnapshots();
 }
 
 function renderPerfCards(){
   const cur=totalMV();
-  // All Time TWR
-  const allTimeSnap=[...snapshots].sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
-  const allTimeTWR=allTimeSnap?computeTWR(allTimeSnap.date):null;
-  const allTimeSimple=allTimeSnap?((cur-allTimeSnap.value)/allTimeSnap.value*100):null;
-
-  // YTD
-  const ytdTWR=computeTWR(getYTDDate());
-  const ytdSimple=computeSimplePerf(getYTDDate());
-
-  // 1 mois
-  const m1Simple=computeSimplePerf(get1MonthAgo());
-  // 1 semaine
-  const w1Simple=computeSimplePerf(get1WeekAgo());
-
-  // PV réalisée totale
+  const tv=totalVerse();
   const realized=computeRealizedPnL();
   const totalRealized=Object.values(realized).reduce((s,v)=>s+(v.realized||0),0);
-  // PV latente
   const latente=positions.reduce((s,p)=>s+pnlEUR(p),0);
 
-  const cards=[
-    {label:'YTD',val:ytdTWR??ytdSimple,badge:ytdTWR!=null?'TWR':'simple',sub:ytdTWR!=null?'Time-Weighted':'Besoin snapshot'},
-    {label:'1 mois',val:m1Simple,badge:'simple',sub:'vs snapshot le plus proche'},
-    {label:'1 semaine',val:w1Simple,badge:'simple',sub:'vs snapshot le plus proche'},
-    {label:'All Time',val:allTimeTWR??allTimeSimple,badge:allTimeTWR!=null?'TWR':'simple',sub:allTimeSnap?`depuis ${allTimeSnap.date}`:'Aucun snapshot'},
-  ];
+  // All Time
+  const atSimple=perfAllTimeSimple();
+  const atTWR=computeTWR('2024-11-01');
 
-  document.getElementById('perf-cards').innerHTML=cards.map(c=>{
-    const hasVal=c.val!=null&&!isNaN(c.val);
-    const color=!hasVal?'#aaa':c.val>=0?'#16a34a':'#dc2626';
+  // YTD
+  const ytdSimple=perfSimple(getYTDDate());
+  const ytdTWR=computeTWR(getYTDDate());
+
+  // 1 mois / 1 semaine (simple suffit)
+  const m1=perfSimple(getDateNDaysAgo(30));
+  const w1=perfSimple(getDateNDaysAgo(7));
+
+  function perfCard(label,simple,twr,sub){
+    const hasS=simple!=null&&!isNaN(simple);
+    const hasT=twr!=null&&!isNaN(twr);
+    const cs=hasS?(simple>=0?'#16a34a':'#dc2626'):'#aaa';
+    const ct=hasT?(twr>=0?'#16a34a':'#dc2626'):'#aaa';
     return `<div class="perf-card">
-      <div class="perf-label">${c.label}</div>
-      <div class="perf-val" style="color:${color}">${hasVal?(c.val>=0?'+':'')+c.val.toFixed(2)+'%':'—'}</div>
-      <div><span class="perf-badge ${c.badge}">${c.badge.toUpperCase()}</span></div>
-      <div class="perf-sub">${c.sub}</div>
+      <div class="perf-label">${label}</div>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:6px 0">
+        <div style="text-align:center">
+          <div style="font-size:10px;color:#aaa;margin-bottom:2px">Simple</div>
+          <div class="perf-val" style="color:${cs};font-size:20px">${hasS?(simple>=0?'+':'')+simple.toFixed(2)+'%':'—'}</div>
+        </div>
+        ${hasT||twr===null?`<div style="text-align:center">
+          <div style="font-size:10px;color:#6d28d9;margin-bottom:2px">TWR</div>
+          <div class="perf-val" style="color:${ct};font-size:20px">${hasT?(twr>=0?'+':'')+twr.toFixed(2)+'%':'—'}</div>
+        </div>`:''}
+      </div>
+      <div class="perf-sub">${sub}</div>
     </div>`;
-  }).join('');
+  }
 
-  // Carte PV réalisée
-  const pvCards=`
+  function perfCardSingle(label,val,sub){
+    const has=val!=null&&!isNaN(val);
+    const c=has?(val>=0?'#16a34a':'#dc2626'):'#aaa';
+    return `<div class="perf-card">
+      <div class="perf-label">${label}</div>
+      <div class="perf-val" style="color:${c};margin:6px 0">${has?(val>=0?'+':'')+val.toFixed(2)+'%':'—'}</div>
+      <div class="perf-sub">${sub}</div>
+    </div>`;
+  }
+
+  document.getElementById('perf-cards').innerHTML=
+    perfCard('All Time',atSimple,atTWR,`${eur(tv)} versés → ${eur(cur)}`)+
+    perfCard('YTD',ytdSimple,ytdTWR,'Depuis le 1er janvier')+
+    perfCardSingle('1 mois',m1,'Glissant 30 jours')+
+    perfCardSingle('1 semaine',w1,'Glissant 7 jours');
+
+  let pvGrid=document.getElementById('perf-pv-cards');
+  if(!pvGrid){
+    pvGrid=document.createElement('div');pvGrid.id='perf-pv-cards';pvGrid.className='three-col';
+    document.getElementById('perf-cards').parentNode.insertBefore(pvGrid,document.getElementById('perf-cards').nextSibling);
+  }
+  pvGrid.innerHTML=`
     <div class="perf-card" style="border-left:3px solid #2563eb">
       <div class="perf-label">PV latente</div>
       <div class="perf-val" style="color:${latente>=0?'#16a34a':'#dc2626'}">${eur(latente)}</div>
-      <div class="perf-sub">Positions ouvertes actuelles</div>
+      <div class="perf-sub">Positions ouvertes</div>
     </div>
     <div class="perf-card" style="border-left:3px solid #9333ea">
       <div class="perf-label">PV réalisée</div>
@@ -873,112 +893,183 @@ function renderPerfCards(){
       <div class="perf-val" style="color:${(latente+totalRealized)>=0?'#16a34a':'#dc2626'}">${eur(latente+totalRealized)}</div>
       <div class="perf-sub">Latente + réalisée</div>
     </div>`;
-
-  // Insérer les cartes PV dans une deuxième rangée
-  const existingGrid=document.getElementById('perf-cards');
-  // Vérifier si on a déjà le second grid
-  let pvGrid=document.getElementById('perf-pv-cards');
-  if(!pvGrid){
-    pvGrid=document.createElement('div');
-    pvGrid.id='perf-pv-cards';
-    pvGrid.className='three-col';
-    existingGrid.parentNode.insertBefore(pvGrid,existingGrid.nextSibling);
-  }
-  pvGrid.innerHTML=pvCards;
 }
 
 function renderPerfPvTable(){
   const realized=computeRealizedPnL();
   const groups=consolidate().sort((a,b)=>b.totalMV-a.totalMV);
-
   let h=`<table><thead><tr>
-    <th class="left">Titre</th>
-
-    <th>PV latente €</th>
-    <th>PV latente %</th>
-    <th>PV réalisée €</th>
-    <th>PV totale €</th>
+    <th class="left">Titre</th><th>Montant</th>
+    <th>PV latente €</th><th>PV latente %</th>
+    <th>PV réalisée €</th><th>PV totale €</th>
   </tr></thead><tbody>`;
-
-  let totLatente=0,totRealized=0;
-
+  let totL=0,totR=0;
   groups.forEach(g=>{
-    const lat=g.pnl;
-    const real=realized[g.ticker]?.realized||0;
-    const tot=lat+real;
-    totLatente+=lat;totRealized+=real;
-    const latCl=lat>=0?'pos':'neg';
-    const totCl=tot>=0?'pos':'neg';
+    const lat=g.pnl,real=realized[g.ticker]?.realized||0,tot=lat+real;
+    totL+=lat;totR+=real;
     h+=`<tr>
       <td style="font-weight:600">${g.name} <span style="font-size:10px;color:#aaa">${g.ticker}</span></td>
       <td>${eur(g.totalMV)}</td>
-      <td class="${latCl}">${eur(lat)}</td>
-      <td class="${latCl}">${fpct(g.pnlPct)}</td>
+      <td class="${lat>=0?'pos':'neg'}">${eur(lat)}</td>
+      <td class="${lat>=0?'pos':'neg'}">${fpct(g.pnlPct)}</td>
       <td style="color:${real===0?'#aaa':real>0?'#16a34a':'#dc2626'};font-weight:${real!==0?600:400}">${real!==0?eur(real):'—'}</td>
-      <td class="${totCl}" style="font-weight:600">${eur(tot)}</td>
+      <td class="${tot>=0?'pos':'neg'}" style="font-weight:600">${eur(tot)}</td>
     </tr>`;
   });
-
-  const grandTot=totLatente+totRealized;
-  h+=`<tr class="pv-total-row">
-    <td>TOTAL</td>
-    <td>—</td>
-    <td class="${totLatente>=0?'pos':'neg'}">${eur(totLatente)}</td>
-    <td>—</td>
-    <td class="${totRealized>=0?'pos':'neg'}">${eur(totRealized)}</td>
-    <td class="${grandTot>=0?'pos':'neg'}">${eur(grandTot)}</td>
-  </tr>`;
-
-  h+='</tbody></table>';
+  const gt=totL+totR;
+  h+=`<tr class="pv-total-row"><td>TOTAL</td><td>—</td>
+    <td class="${totL>=0?'pos':'neg'}">${eur(totL)}</td><td>—</td>
+    <td class="${totR>=0?'pos':'neg'}">${eur(totR)}</td>
+    <td class="${gt>=0?'pos':'neg'}">${eur(gt)}</td>
+  </tr></tbody></table>`;
   document.getElementById('perf-pv-tbl').innerHTML=h;
 }
 
-function renderPerfChart(){
+// ── GRAPHIQUE 1 : Valeur + Versements cumulés (style TR) ──────────
+function renderPerfChartVal(){
   const ctx=document.getElementById('cv-perf');
-  if(!ctx) return;
-
-  if(perfChart){perfChart.destroy();perfChart=null;}
-
+  if(!ctx)return;
+  if(perfChartVal){perfChartVal.destroy();perfChartVal=null;}
   const cur=totalMV();
   const now=new Date().toISOString().split('T')[0];
+  const snaps=[...snapshots].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if(cur>100) snaps.push({date:now,value:Math.round(cur*100)/100});
+  if(snaps.length<2) return;
 
-  const points=[...snapshots]
-    .sort((a,b)=>new Date(a.date)-new Date(b.date))
-    .map(s=>({x:s.date,y:s.value}));
+  const labels=snaps.map(s=>s.date);
+  const valData=snaps.map(s=>s.value);
 
-  // Ajouter le point actuel si on a des cours
-  if(cur>100) points.push({x:now,y:Math.round(cur*100)/100});
+  // Versements cumulés à chaque date snapshot
+  const versData=snaps.map(s=>{
+    const d=new Date(s.date);
+    return versements.filter(v=>new Date(v.date)<=d).reduce((sum,v)=>sum+v.amount,0);
+  });
 
-  if(points.length<2){
-    ctx.parentNode.insertAdjacentHTML('beforeend','<p style="text-align:center;font-size:12px;color:#aaa;margin-top:8px">Ajoute au moins 2 snapshots pour afficher la courbe.</p>');
-    return;
-  }
-
-  perfChart=new Chart(ctx,{
+  perfChartVal=new Chart(ctx,{
     type:'line',
     data:{
-      labels:points.map(p=>p.x),
+      labels,
+      datasets:[
+        {
+          label:'Valeur portefeuille',
+          data:valData,
+          borderColor:'#1a1a1a',
+          backgroundColor:'rgba(26,26,26,0.07)',
+          borderWidth:2.5,
+          pointRadius:3,
+          pointHoverRadius:6,
+          pointBackgroundColor:'#1a1a1a',
+          fill:true,
+          tension:0.3,
+          order:1
+        },
+        {
+          label:'Versements cumulés',
+          data:versData,
+          borderColor:'#2563eb',
+          backgroundColor:'rgba(37,99,235,0.06)',
+          borderWidth:2,
+          borderDash:[5,4],
+          pointRadius:0,
+          pointHoverRadius:5,
+          fill:true,
+          tension:0.3,
+          order:2
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',labels:{font:{size:11},boxWidth:14,padding:16}},
+        tooltip:{
+          callbacks:{
+            label:c=>{
+              const v=c.parsed.y;
+              if(c.datasetIndex===0){
+                // Afficher aussi la perf par rapport aux versements à ce point
+                const vers=versData[c.dataIndex];
+                const pct=vers>0?((v-vers)/vers*100):null;
+                return ` Valeur : ${eur(v)}${pct!=null?' ('+( pct>=0?'+':'')+pct.toFixed(1)+'%)':''}`;
+              }
+              return ` Versé : ${eur(v)}`;
+            }
+          }
+        }
+      },
+      scales:{
+        y:{ticks:{callback:v=>eur(v)},grid:{color:'#f5f5f5'}},
+        x:{ticks:{maxTicksLimit:10,maxRotation:0},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ── GRAPHIQUE 2 : Performance % cumulée dans le temps ────────────
+function renderPerfChartPct(){
+  const ctx=document.getElementById('cv-perf-pct');
+  if(!ctx)return;
+  if(perfChartPct){perfChartPct.destroy();perfChartPct=null;}
+  const cur=totalMV();
+  const now=new Date().toISOString().split('T')[0];
+  const snaps=[...snapshots].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if(cur>100) snaps.push({date:now,value:Math.round(cur*100)/100});
+  if(snaps.length<2) return;
+
+  const labels=snaps.map(s=>s.date);
+  const pctData=snaps.map(s=>{
+    const d=new Date(s.date);
+    const tv=versements.filter(v=>new Date(v.date)<=d).reduce((sum,v)=>sum+v.amount,0);
+    if(!tv) return 0;
+    return((s.value-tv)/tv)*100;
+  });
+
+  perfChartPct=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels,
       datasets:[{
-        label:'Valeur portefeuille (€)',
-        data:points.map(p=>p.y),
-        borderColor:'#1a1a1a',
-        backgroundColor:'rgba(26,26,26,0.06)',
-        borderWidth:2,
-        pointRadius:4,
-        pointBackgroundColor:'#1a1a1a',
+        label:'Performance %',
+        data:pctData,
+        borderColor:ctx=>pctData[pctData.length-1]>=0?'#16a34a':'#dc2626',
+        backgroundColor:ctx=>pctData[pctData.length-1]>=0?'rgba(22,163,74,0.08)':'rgba(220,38,38,0.08)',
+        borderWidth:2.5,
+        pointRadius:3,
+        pointHoverRadius:6,
         fill:true,
         tension:0.3,
+        segment:{
+          borderColor:ctx=>ctx.p1.parsed.y>=0?'#16a34a':'#dc2626',
+          backgroundColor:ctx=>ctx.p1.parsed.y>=0?'rgba(22,163,74,0.08)':'rgba(220,38,38,0.08)',
+        }
       }]
     },
     options:{
       responsive:true,
+      interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:c=>' '+eur(c.parsed.y)}}
+        tooltip:{
+          callbacks:{
+            label:c=>{
+              const v=c.parsed.y;
+              const d=new Date(labels[c.dataIndex]);
+              const tv=versements.filter(vv=>new Date(vv.date)<=d).reduce((s,vv)=>s+vv.amount,0);
+              const val=snaps[c.dataIndex]?.value||0;
+              return ` ${(v>=0?'+':'')+v.toFixed(2)}% — Valeur : ${eur(val)} / Versé : ${eur(tv)}`;
+            },
+            title:c=>`📅 ${c[0].label}`
+          }
+        }
       },
       scales:{
-        y:{ticks:{callback:v=>eur(v)},grid:{color:'#f0f0f0'}},
-        x:{grid:{display:false}}
+        y:{
+          ticks:{callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},
+          grid:{color:'#f5f5f5'},
+          afterDataLimits:axis=>{const m=Math.max(Math.abs(axis.min),Math.abs(axis.max));axis.min=-m*1.1;axis.max=m*1.1;}
+        },
+        x:{ticks:{maxTicksLimit:10,maxRotation:0},grid:{display:false}}
       }
     }
   });
