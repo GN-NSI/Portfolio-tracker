@@ -168,6 +168,13 @@ input:focus,select:focus{outline:none;border-color:#999}
       <div class="card"><div class="ctitle">Zone géographique</div><canvas id="cv-geo" width="180" height="180" style="display:block;margin:0 auto 10px"></canvas><div id="lg-geo" class="legend"></div></div>
     </div>
     <div class="card"><div class="ctitle">Secteur</div><canvas id="cv-sec" width="400" height="160" style="display:block;margin:0 auto 10px;max-width:100%"></canvas><div id="lg-sec" class="legend" style="display:grid;grid-template-columns:1fr 1fr;gap:4px"></div></div>
+    <div class="card">
+      <div class="ctitle">Par entreprise <span style="font-size:10px;font-weight:400;color:#aaa;text-transform:none;letter-spacing:0">— poids réel ETF inclus · <span style="color:#2563eb">bleu</span> = part via ETF</span></div>
+      <div class="two-col">
+        <canvas id="cv-ent" width="240" height="240" style="display:block;margin:0 auto 10px"></canvas>
+        <div id="lg-ent" class="legend" style="overflow-y:auto;max-height:260px"></div>
+      </div>
+    </div>
   </div>
 
   <!-- FONDAMENTAUX -->
@@ -377,6 +384,7 @@ const DEFAULT_SEUILS={
 };
 
 let positions=[],prices={},fxUSD=0.92,txs=[],charts2={},expanded=new Set();
+let sortCol='totalMV',sortDir=-1; // tri par défaut : Montant décroissant
 let manualPrices=JSON.parse(localStorage.getItem('pf_manual')||'{}');
 let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
 let watchlist=JSON.parse(localStorage.getItem('pf_watchlist')||'[]');
@@ -515,6 +523,37 @@ function consolidate(){
     return{...g,totalQty,pruMoyEUR,totalInvEUR,totalMV,pnl,pnlPct,isETF:!!ETF_META[g.ticker]};
   });
 }
+// ── POIDS RÉEL (direct + exposition ETF) ──────────────────────────
+function computeRealWeights(){
+  const tot=positions.reduce((s,p)=>s+mvEUR(p),0);
+  if(!tot) return {};
+  // 1. Valeur directe par ticker
+  const direct={};
+  positions.forEach(p=>{
+    if(ETF_META[p.ticker]) return; // on traite les ETF séparément
+    direct[p.ticker]=(direct[p.ticker]||0)+mvEUR(p);
+  });
+  // 2. Exposition indirecte via ETF
+  const indirect={};
+  positions.forEach(p=>{
+    if(!ETF_META[p.ticker]) return;
+    const etfMV=mvEUR(p);
+    const holdings=ETF_HOLDINGS[p.ticker]||[];
+    holdings.forEach(h=>{
+      indirect[h.ticker]=(indirect[h.ticker]||0)+etfMV*(h.pct/100);
+    });
+  });
+  // 3. Fusion : pour chaque ticker connu, total = direct + indirect
+  const allTickers=new Set([...Object.keys(direct),...Object.keys(indirect)]);
+  const result={};
+  allTickers.forEach(tk=>{
+    const d=direct[tk]||0;
+    const i=indirect[tk]||0;
+    result[tk]={direct:d,indirect:i,total:d+i,pct:((d+i)/tot)*100};
+  });
+  return result;
+}
+
 function etfExpo(ticker,etfMV){
   const h=ETF_HOLDINGS[ticker];if(!h)return[];
   const rows=h.map(e=>({name:e.name,ticker:e.ticker,pct:e.pct,val:etfMV*(e.pct/100)}));
@@ -725,7 +764,7 @@ function renderPerfPvTable(){
 
   let h=`<table><thead><tr>
     <th class="left">Titre</th>
-    <th>Val. marché</th>
+
     <th>PV latente €</th>
     <th>PV latente %</th>
     <th>PV réalisée €</th>
@@ -881,18 +920,54 @@ function renderMetrics(){
     <div class="metric"><div class="mlabel">CTO TR</div><div class="mval">${eur(c2)}</div></div>`;
 }
 
+function sortGroups(groups){
+  return [...groups].sort((a,b)=>{
+    let va=a[sortCol],vb=b[sortCol];
+    if(sortCol==='name'){va=va||'';vb=vb||'';return sortDir*(va.localeCompare(vb));}
+    return sortDir*(va-vb);
+  });
+}
+function thSort(col,label){
+  const active=sortCol===col;
+  const arrow=active?(sortDir===1?'↑':'↓'):'↕';
+  const style=active?'color:#1a1a1a;cursor:pointer;user-select:none':'color:#bbb;cursor:pointer;user-select:none';
+  return `<th onclick="setSort('${col}')" style="${style}" title="Trier par ${label}">${label} <span style="font-size:9px">${arrow}</span></th>`;
+}
+function thSortLeft(col,label){
+  const active=sortCol===col;
+  const arrow=active?(sortDir===1?'↑':'↓'):'↕';
+  const style=`text-align:left;${active?'color:#1a1a1a':'color:#888'};cursor:pointer;user-select:none`;
+  return `<th onclick="setSort('${col}')" style="${style}" title="Trier par ${label}">${label} <span style="font-size:9px;color:#bbb">${arrow}</span></th>`;
+}
+function setSort(col){
+  if(sortCol===col) sortDir*=-1;
+  else{sortCol=col;sortDir=-1;}
+  renderPositions();
+}
+
 function renderPositions(){
-  const groups=consolidate().sort((a,b)=>b.totalMV-a.totalMV);
+  const realWeights=computeRealWeights();
+  const groups=sortGroups(consolidate());
   const tot=groups.reduce((s,g)=>s+g.totalMV,0);
   let h=`<table><colgroup>
-    <col style="width:17%"><col style="width:8%"><col style="width:11%"><col style="width:11%">
-    <col style="width:11%"><col style="width:11%"><col style="width:8%"><col style="width:11%"><col style="width:12%">
+    <col style="width:16%"><col style="width:7%"><col style="width:10%"><col style="width:10%">
+    <col style="width:10%"><col style="width:10%"><col style="width:8%"><col style="width:16%"><col style="width:13%">
   </colgroup><thead><tr>
-    <th class="left">Titre</th><th>Qté</th><th>PRU moy. €</th><th>Cours €</th>
-    <th>Val. marché</th><th>PV/MV €</th><th>PV%</th><th>Poids</th><th>Comptes</th>
+    ${thSortLeft('name','Titre')}
+    ${thSort('totalQty','Qté')}
+    ${thSort('pruMoyEUR','PRU moy. €')}
+    <th>Cours €</th>
+    ${thSort('totalMV','Montant')}
+    ${thSort('pnl','PV/MV €')}
+    ${thSort('pnlPct','PV%')}
+    <th>Poids direct / réel ⓘ</th>
+    <th>Comptes</th>
   </tr></thead><tbody>`;
   groups.forEach((g,gi)=>{
-    const w=tot?(g.totalMV/tot)*100:0;
+    const wDirect=tot?(g.totalMV/tot)*100:0;
+    const rw=realWeights[g.ticker];
+    const wReal=rw?rw.pct:wDirect;
+    const hasETFExpo=rw&&rw.indirect>0;
     const cl=g.pnl>=0?'pos':'neg';
     const cp=getCoursEUR(g.lines[0]);
     const isOpen=expanded.has(g.ticker);
@@ -903,6 +978,16 @@ function renderPositions(){
     ).join(' ');
     const isManual=manualPrices[g.ticker]&&manualPrices[g.ticker]>0;
     const coursDisplay=cp?`${eur(cp)}${isManual?' <span style="font-size:9px;color:#aaa">(M)</span>':''}`:'<span style="color:#aaa;font-size:10px">PRU</span>';
+    // Poids : barre double (direct en noir, ETF en bleu)
+    const barDirect=Math.min(wDirect*4,100);
+    const barReal=Math.min(wReal*4,100);
+    const poidsCell=`<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+      <div style="position:relative;width:50px;height:4px;background:#eee;border-radius:2px;overflow:hidden">
+        ${hasETFExpo?`<div style="position:absolute;top:0;left:0;height:100%;width:${barReal}%;background:#dbeafe;border-radius:2px"></div>`:''}
+        <div style="position:absolute;top:0;left:0;height:100%;width:${barDirect}%;background:#1a1a1a;border-radius:2px"></div>
+      </div>
+      <span style="font-size:10px;color:#999">${wDirect.toFixed(1)}%${hasETFExpo?`<span style="color:#2563eb"> +${(wReal-wDirect).toFixed(1)}%</span>`:''}</span>
+    </div>`;
     h+=`<tr class="main-row" onclick="toggleRow(${gi},'${g.ticker}')">
       <td style="font-weight:600">${arrow}${g.name||g.ticker}</td>
       <td>${g.totalQty<1?g.totalQty.toFixed(3):g.totalQty%1===0?g.totalQty:g.totalQty.toFixed(3)}</td>
@@ -910,10 +995,7 @@ function renderPositions(){
       <td style="font-weight:600">${eur(g.totalMV)}</td>
       <td class="${cl}" style="font-weight:600">${eur(g.pnl)}</td>
       <td class="${cl}">${fpct(g.pnlPct)}</td>
-      <td><div style="display:flex;align-items:center;gap:3px">
-        <div class="bar-bg"><div class="bar-fg" style="width:${Math.min(w*5,100)}%;background:#1a1a1a"></div></div>
-        <span style="font-size:10px;color:#999">${w.toFixed(1)}%</span>
-      </div></td>
+      <td>${poidsCell}</td>
       <td>${badges}</td>
     </tr>`;
     if(g.lines.length>1){
@@ -1177,7 +1259,7 @@ function renderRep(){
     geo[p.geo||'Autre']=(geo[p.geo||'Autre']||0)+m;
     sec[p.sector||'Autre']=(sec[p.sector||'Autre']||0)+m;});
   const ep=v=>(v/tot)*100;
-  const GC=['#1a1a1a','#2563eb','#dc2626','#d97706','#16a34a','#9333ea','#0891b2','#be185d'];
+  const GC=['#1a1a1a','#2563eb','#dc2626','#d97706','#16a34a','#9333ea','#0891b2','#be185d','#ea580c','#0d9488','#7c3aed','#db2777','#65a30d','#0369a1','#b45309','#4338ca','#059669','#9f1239'];
   pie('cv-env',['PEA','CTO IBKR','CTO TR'],[ep(env.PEA),ep(env.CTO1),ep(env.CTO2)],['#2563eb','#16a34a','#d97706']);
   mkLegend('lg-env',[['PEA','#2563eb',ep(env.PEA)],['CTO IBKR','#16a34a',ep(env.CTO1)],['CTO TR','#d97706',ep(env.CTO2)]]);
   const gk=Object.keys(geo).sort((a,b)=>geo[b]-geo[a]);
@@ -1188,6 +1270,43 @@ function renderRep(){
   document.getElementById('lg-sec').innerHTML=sk.map((k,i)=>
     `<div class="li"><div class="dot" style="background:${GC[i]||'#888'}"></div><span style="flex:1">${k}</span><span style="font-weight:600">${ep(sec[k]).toFixed(1)}%</span></div>`
   ).join('');
+
+  // ── Graphique par entreprise (poids réel ETF inclus) ──
+  const rw=computeRealWeights();
+  // Ajouter les ETF eux-mêmes comme entrées (la part non décomposée)
+  positions.forEach(p=>{
+    if(!ETF_META[p.ticker]) return;
+    const holdings=ETF_HOLDINGS[p.ticker]||[];
+    const coveredPct=holdings.reduce((s,h)=>s+h.pct,0);
+    const uncoveredMV=mvEUR(p)*((100-coveredPct)/100);
+    if(uncoveredMV>0){
+      const key=ETF_META[p.ticker].name+' (autres)';
+      if(!rw[key]) rw[key]={direct:0,indirect:0,total:0,pct:0};
+      rw[key].total+=uncoveredMV;
+      rw[key].pct=(rw[key].total/tot)*100;
+    }
+  });
+
+  // Construire les données triées par poids réel
+  const entreprises=Object.entries(rw)
+    .map(([tk,v])=>{
+      // Trouver le nom
+      const pos=positions.find(p=>p.ticker===tk);
+      const name=pos?.name||tk;
+      return {name,ticker:tk,pct:v.pct,direct:v.direct,indirect:v.indirect};
+    })
+    .filter(e=>e.pct>0.05)
+    .sort((a,b)=>b.pct-a.pct);
+
+  const enColors=entreprises.map((_,i)=>GC[i%GC.length]);
+  pie('cv-ent',entreprises.map(e=>e.name),entreprises.map(e=>e.pct),enColors);
+
+  // Légende entreprise avec indication direct/ETF
+  document.getElementById('lg-ent').innerHTML=entreprises.map((e,i)=>{
+    const hasIndirect=e.indirect>0;
+    const tag=hasIndirect?` <span style="font-size:9px;color:#2563eb">(+${(e.indirect/tot*100).toFixed(1)}% ETF)</span>`:'';
+    return `<div class="li"><div class="dot" style="background:${GC[i%GC.length]}"></div><span style="flex:1">${e.name}${tag}</span><span style="font-weight:600">${e.pct.toFixed(1)}%</span></div>`;
+  }).join('');
 }
 
 // ── COURS MANUELS ──────────────────────────────────────────────────
