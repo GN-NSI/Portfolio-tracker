@@ -311,16 +311,21 @@ function save(){
 }
 
 // ── FETCH ──────────────────────────────────────────────────────────
-async function fetchQuote(ticker){
-  if(manualPrices[ticker]&&manualPrices[ticker]>0) return manualPrices[ticker];
-  const yh=ETF_META[ticker]?.yhTicker||YH_TICKER[ticker];
-  if(!yh) return null;
-  try{
-    const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(yh)}`);
-    if(!r.ok) return null;
-    const d=await r.json();
-    return d.price||null;
-  }catch(e){return null;}
+async function fetchQuote(ticker) {
+  if (manualPrices[ticker] && manualPrices[ticker] > 0) return manualPrices[ticker];
+  
+  // Ticker explicitement marqué null → cours manuel uniquement
+  if (ticker in YH_TICKER && YH_TICKER[ticker] === null) return null;
+  
+  // ETF → utiliser le yhTicker mappé, sinon ticker direct
+  const yh = ETF_META[ticker]?.yhTicker || YH_TICKER[ticker] || ticker;
+  
+  try {
+    const r = await fetch(`${API_BASE}?symbol=${encodeURIComponent(yh)}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.price || null;
+  } catch(e) { return null; }
 }
 async function fetchFX(){
   try{
