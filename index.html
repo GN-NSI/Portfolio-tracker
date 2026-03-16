@@ -254,6 +254,11 @@ input:focus,select:focus{outline:none;border-color:#999}
       </div>
     </div>
     <div class="card">
+      <div class="ctitle">Liquidités</div>
+      <div class="warn">Cash disponible sur chaque compte (non investi). Mis à jour manuellement.</div>
+      <div id="liq-tbl"></div>
+    </div>
+    <div class="card">
       <div class="ctitle">Cours manuels</div>
       <div class="warn">Pour les titres sans feed automatique fiable (gettex / Trade Republic). Saisis le cours en € depuis ton app TR. Prioritaire sur Yahoo Finance.</div>
       <div id="manual-tbl"></div>
@@ -320,7 +325,7 @@ const ETF_HOLDINGS={
 const DEFAULTS=[
   // CTO1 — IBKR (PRU en USD)
   {ticker:'AMZN',name:'Amazon',qty:2,pru:215.64,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'BKNG',name:'Booking',qty:0.005,pru:3930.52,account:'CTO1',sector:'Consommation',geo:'USA'},
+  {ticker:'BKNG',name:'Booking',qty:0.055,pru:3930.52,account:'CTO1',sector:'Consommation',geo:'USA'},
   {ticker:'COIN',name:'Coinbase',qty:1,pru:140.45,account:'CTO1',sector:'Finance',geo:'USA'},
   {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:311.58,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'LYFT',name:'Lyft',qty:10,pru:18.44,account:'CTO1',sector:'Consommation',geo:'USA'},
@@ -373,6 +378,107 @@ const DEFAULT_TXS=[
   {ticker:'005930.KS',name:'Samsung',type:'sell',qty:0.12489,price:2002.56,date:'2025-01-14',note:'TR — vente partielle',account:'CTO2'},
 ];
 
+// ── SNAPSHOTS PAR DÉFAUT ─────────────────────────────────────────
+// Valeur totale consolidée (TR + PEA + IBKR) à chaque date
+// Avant ouverture IBKR (nov 2025) : TR + PEA seulement
+// Avant ouverture PEA (nov 2024) : TR seulement
+const DEFAULT_SNAPSHOTS=[
+  // ── TR seul (nov 2024)
+  {date:'2024-11-18',value:322.97,  note:'TR seul'},
+  {date:'2024-11-25',value:408.02,  note:'TR seul'},
+  {date:'2024-12-02',value:372.85,  note:'TR seul'},
+  {date:'2024-12-30',value:316.66,  note:'TR seul'},
+  // ── TR + PEA (à partir de fin mars 2025 — premier snapshot PEA dispo)
+  {date:'2025-01-20',value:386.98+0,        note:'TR (PEA ~10€ ignoré)'},
+  {date:'2025-02-03',value:324.07+0,        note:'TR (PEA ~10€ ignoré)'},
+  {date:'2025-03-03',value:246.43+0,        note:'TR (PEA ouvert mais <10€)'},
+  {date:'2025-03-24',value:268+1014.85,     note:'TR + PEA'},
+  {date:'2025-03-31',value:268+1014.85,     note:'TR + PEA'},
+  {date:'2025-04-01',value:637.34+1231.80,  note:'TR + PEA'},
+  {date:'2025-04-07',value:637.34+876.19,   note:'TR + PEA'},
+  {date:'2025-04-21',value:637.34+878.17,   note:'TR + PEA'},
+  {date:'2025-04-28',value:736.50+878.17,   note:'TR + PEA'},
+  {date:'2025-05-08',value:736.50+964.77,   note:'TR + PEA'},
+  {date:'2025-05-19',value:845.85+964.77,   note:'TR + PEA'},
+  {date:'2025-05-27',value:845.85+996.04,   note:'TR + PEA'},
+  {date:'2025-06-02',value:760.66+996.04,   note:'TR + PEA'},
+  {date:'2025-06-16',value:1122.57+1002.98, note:'TR + PEA'},
+  {date:'2025-06-26',value:1122.57+1002.98, note:'TR + PEA'},
+  {date:'2025-06-30',value:1224.70+1002.98, note:'TR + PEA'},
+  {date:'2025-07-14',value:1304.10+1042.23, note:'TR + PEA'},
+  {date:'2025-07-21',value:985.24+1042.23,  note:'TR + PEA'},
+  {date:'2025-07-25',value:985.24+1042.23,  note:'TR + PEA'},
+  {date:'2025-08-11',value:1033.36+1054.47, note:'TR + PEA'},
+  {date:'2025-08-29',value:1033.36+1058.00, note:'TR + PEA'},
+  {date:'2025-09-01',value:1019.28+1058.00, note:'TR + PEA'},
+  {date:'2025-09-15',value:1345.23+1087.01, note:'TR + PEA'},
+  {date:'2025-09-24',value:1345.23+1087.01, note:'TR + PEA'},
+  {date:'2025-09-29',value:1370.47+1087.01, note:'TR + PEA'},
+  {date:'2025-10-13',value:1515.70+1088.84, note:'TR + PEA'},
+  {date:'2025-10-17',value:1515.70+1088.84, note:'TR + PEA'},
+  {date:'2025-10-27',value:1587.57+1137.33, note:'TR + PEA'},
+  // ── TR + PEA + IBKR (à partir de fin nov 2025)
+  {date:'2025-11-03',value:1694.40+1115.15+10,      note:'TR + PEA + IBKR'},
+  {date:'2025-11-10',value:1400.81+1115.15+10,      note:'TR + PEA + IBKR'},
+  {date:'2025-11-19',value:1495.16+1115.15+10,      note:'TR + PEA + IBKR'},
+  {date:'2025-11-24',value:1495.16+1115.15+10,      note:'TR + PEA + IBKR'},
+  {date:'2025-11-28',value:1573.00+1115.15+10,      note:'TR + PEA + IBKR'},
+  {date:'2025-12-08',value:1573.00+1133.55+510,     note:'TR + PEA + IBKR'},
+  {date:'2025-12-11',value:1601.48+1133.55+510,     note:'TR + PEA + IBKR'},
+  {date:'2025-12-15',value:1601.48+1133.55+988.16,  note:'TR + PEA + IBKR'},
+  {date:'2025-12-17',value:1601.48+1103.68+988.16,  note:'TR + PEA + IBKR'},
+  {date:'2025-12-23',value:1601.48+2129.37+988.16,  note:'TR + PEA + IBKR'},
+  {date:'2025-12-30',value:1581.22+2129.37+1024.38, note:'TR + PEA + IBKR'},
+  {date:'2026-01-06',value:1711.58+2129.37+1060.21, note:'TR + PEA + IBKR'},
+  {date:'2026-01-08',value:1711.58+2129.37+1060.21, note:'TR + PEA + IBKR'},
+  {date:'2026-01-14',value:1515.82+2188.02+1067.34, note:'TR + PEA + IBKR'},
+  {date:'2026-01-16',value:1515.82+2188.02+1067.34, note:'TR + PEA + IBKR'},
+  {date:'2026-01-21',value:1559.67+2188.02+1533.08, note:'TR + PEA + IBKR'},
+  {date:'2026-01-28',value:1559.67+2180.70+1533.08, note:'TR + PEA + IBKR'},
+  {date:'2026-01-29',value:1730.93+2180.70+1568.00, note:'TR + PEA + IBKR'},
+  {date:'2026-02-05',value:1588.08+2180.70+1886.74, note:'TR + PEA + IBKR'},
+  {date:'2026-02-06',value:1588.08+2180.70+1886.74, note:'TR + PEA + IBKR'},
+  {date:'2026-02-11',value:1776.73+2221.91+2449.17, note:'TR + PEA + IBKR'},
+  {date:'2026-02-12',value:1776.73+2221.91+2449.17, note:'TR + PEA + IBKR'},
+  {date:'2026-02-16',value:1776.73+2221.91+2449.17, note:'TR + PEA + IBKR'},
+  {date:'2026-02-19',value:1817.63+2221.91+2894.83, note:'TR + PEA + IBKR'},
+  {date:'2026-02-23',value:1817.63+2270.47+2894.83, note:'TR + PEA + IBKR'},
+  {date:'2026-02-24',value:1927.22+2270.47+2894.83, note:'TR + PEA + IBKR'},
+  {date:'2026-02-26',value:1927.22+2270.47+2977.20, note:'TR + PEA + IBKR'},
+  {date:'2026-03-02',value:1800.00+2217.91+2977.20, note:'TR + PEA + IBKR'},
+  {date:'2026-03-03',value:1800.00+2217.91+3346.10, note:'TR + PEA + IBKR'},
+  {date:'2026-03-06',value:1714.57+2385.94+3346.10, note:'TR + PEA + IBKR'},
+  {date:'2026-03-09',value:1714.57+2432.51+3725.92, note:'TR + PEA + IBKR'},
+  {date:'2026-03-10',value:1714.57+2432.51+3725.92, note:'TR + PEA + IBKR'},
+  {date:'2026-03-13',value:1817.84+2418.54+3789.22, note:'TR + PEA + IBKR'},
+  {date:'2026-03-16',value:1817.84+2418.54+3789.22, note:'TR + PEA + IBKR'},
+];
+
+// ── VERSEMENTS PAR DÉFAUT ────────────────────────────────────────
+const DEFAULT_VERSEMENTS=[
+  // TR
+  {date:'2024-11-11',amount:286,  account:'CTO2',note:'Ouverture TR'},
+  {date:'2025-03-31',amount:400,  account:'CTO2',note:'Versement TR'},
+  {date:'2025-06-03',amount:500,  account:'CTO2',note:'Versement TR'},
+  {date:'2025-10-06',amount:9,    account:'CTO2',note:'Versement TR'},
+  // PEA
+  {date:'2024-11-26',amount:10,   account:'PEA', note:'Ouverture PEA'},
+  {date:'2025-12-18',amount:1000, account:'PEA', note:'Versement PEA'},
+  {date:'2025-12-22',amount:1000, account:'PEA', note:'Versement PEA'},
+  {date:'2026-01-29',amount:30,   account:'PEA', note:'Versement PEA'},
+  {date:'2026-03-06',amount:200,  account:'PEA', note:'Versement PEA'},
+  // IBKR
+  {date:'2025-11-24',amount:10,   account:'CTO1',note:'Ouverture IBKR'},
+  {date:'2025-12-08',amount:500,  account:'CTO1',note:'Versement IBKR'},
+  {date:'2025-12-12',amount:500,  account:'CTO1',note:'Versement IBKR'},
+  {date:'2026-01-14',amount:500,  account:'CTO1',note:'Versement IBKR'},
+  {date:'2026-01-29',amount:400,  account:'CTO1',note:'Versement IBKR'},
+  {date:'2026-02-05',amount:500,  account:'CTO1',note:'Versement IBKR'},
+  {date:'2026-02-11',amount:400,  account:'CTO1',note:'Versement IBKR'},
+  {date:'2026-02-27',amount:400,  account:'CTO1',note:'Versement IBKR'},
+  {date:'2026-03-04',amount:400,  account:'CTO1',note:'Versement IBKR (liquidités)'},
+];
+
 // Seuils par défaut
 const DEFAULT_SEUILS={
   per:      {label:'PER actuel',          g:20, r:35, dir:'high'},
@@ -391,7 +497,10 @@ let watchlist=JSON.parse(localStorage.getItem('pf_watchlist')||'[]');
 let watchlistPrices={};
 let seuils=JSON.parse(localStorage.getItem('pf_seuils')||JSON.stringify(DEFAULT_SEUILS));
 let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
+let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
+// Liquidités saisies manuellement (persistées)
+let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:404.41,CTO2:1827.37,PEA:2418.53}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
 
@@ -400,11 +509,19 @@ function load(){
     const p=localStorage.getItem('pfv_pos');
     positions=p?JSON.parse(p):JSON.parse(JSON.stringify(DEFAULTS));
     const t=localStorage.getItem('pfv_tx');
-    if(t){
-      txs=JSON.parse(t);
-    } else {
-      // Premier chargement : on injecte les transactions historiques TR
-      txs=JSON.parse(JSON.stringify(DEFAULT_TXS));
+    if(t){txs=JSON.parse(t);}
+    else{txs=JSON.parse(JSON.stringify(DEFAULT_TXS));}
+    // Snapshots : injecter les défauts si localStorage vide
+    const sn=localStorage.getItem('pf_snapshots');
+    if(!sn||JSON.parse(sn).length===0){
+      snapshots=JSON.parse(JSON.stringify(DEFAULT_SNAPSHOTS)).map(s=>({...s,value:Math.round(s.value*100)/100}));
+      localStorage.setItem('pf_snapshots',JSON.stringify(snapshots));
+    }
+    // Versements : injecter les défauts si localStorage vide
+    const vn=localStorage.getItem('pf_versements');
+    if(!vn||JSON.parse(vn).length===0){
+      versements=JSON.parse(JSON.stringify(DEFAULT_VERSEMENTS));
+      localStorage.setItem('pf_versements',JSON.stringify(versements));
     }
   }catch(e){
     positions=JSON.parse(JSON.stringify(DEFAULTS));
@@ -433,12 +550,24 @@ async function fetchQuote(ticker){
   }catch(e){return null;}
 }
 async function fetchFX(){
+  // Essai 1 : via notre proxy Yahoo Finance
   try{
     const r=await fetch(`${API_BASE}?symbol=USDEUR%3DX`);
-    if(!r.ok)return;
-    const d=await r.json();
-    if(d.price&&d.price>0)fxUSD=d.price;
+    if(r.ok){
+      const d=await r.json();
+      if(d.price&&d.price>0.5&&d.price<1.5){fxUSD=d.price;return;}
+    }
   }catch(e){}
+  // Essai 2 : EURUSD inversé
+  try{
+    const r=await fetch(`${API_BASE}?symbol=EURUSD%3DX`);
+    if(r.ok){
+      const d=await r.json();
+      if(d.price&&d.price>0.5&&d.price<2){fxUSD=1/d.price;return;}
+    }
+  }catch(e){}
+  // Fallback : taux réaliste mars 2026 (meilleur que 0.92 codé en dur)
+  if(fxUSD===0.92) fxUSD=0.919; // sera mis à jour au prochain essai
 }
 
 async function loadAll(){
@@ -899,7 +1028,7 @@ function toggleSnapHelp(){
 
 // ── RENDER ─────────────────────────────────────────────────────────
 function render(){
-  renderMetrics();renderPositions();renderManage();populateTxSel();renderTx();renderWatchlist();
+  renderMetrics();renderPositions();renderManage();renderLiquidites();populateTxSel();renderTx();renderWatchlist();
   if(document.getElementById('pane-repartition').classList.contains('active')) renderRep();
   if(document.getElementById('pane-fondamentaux').classList.contains('active')) renderFondamentaux();
   if(document.getElementById('pane-performance').classList.contains('active')) renderPerformance();
@@ -910,14 +1039,21 @@ function renderMetrics(){
   let tot=0,inv=0,pea=0,c1=0,c2=0;
   positions.forEach(p=>{const m=mvEUR(p);tot+=m;inv+=p.qty*getPRUeur(p);
     if(p.account==='PEA')pea+=m;else if(p.account==='CTO1')c1+=m;else c2+=m;});
+  // Liquidités
+  const liqC1=liquidites.CTO1||0;
+  const liqC2=liquidites.CTO2||0;
+  const liqPEA=liquidites.PEA||0;
+  const totLiq=liqC1+liqC2+liqPEA;
+  const totAvecLiq=tot+totLiq;
   const g=tot-inv,gp=inv?(g/inv)*100:0;
   document.getElementById('mbar').innerHTML=`
-    <div class="metric"><div class="mlabel">Valeur totale</div><div class="mval">${eur(tot)}</div></div>
+    <div class="metric"><div class="mlabel">Valeur totale</div><div class="mval">${eur(tot)}</div><div class="msub" style="color:#888">+${eur(totLiq)} liquidités</div></div>
+    <div class="metric"><div class="mlabel">Total avec liquidités</div><div class="mval" style="color:#2563eb">${eur(totAvecLiq)}</div></div>
     <div class="metric"><div class="mlabel">Investi</div><div class="mval">${eur(inv)}</div></div>
     <div class="metric"><div class="mlabel">PV / MV latente</div><div class="mval ${g>=0?'pos':'neg'}">${eur(g)}</div><div class="msub ${g>=0?'pos':'neg'}">${fpct(gp)}</div></div>
-    <div class="metric"><div class="mlabel">PEA</div><div class="mval">${eur(pea)}</div></div>
-    <div class="metric"><div class="mlabel">CTO IBKR</div><div class="mval">${eur(c1)}</div></div>
-    <div class="metric"><div class="mlabel">CTO TR</div><div class="mval">${eur(c2)}</div></div>`;
+    <div class="metric"><div class="mlabel">PEA</div><div class="mval">${eur(pea)}</div><div class="msub" style="color:#aaa">${eur(liqPEA)} cash</div></div>
+    <div class="metric"><div class="mlabel">CTO IBKR</div><div class="mval">${eur(c1)}</div><div class="msub" style="color:#aaa">${eur(liqC1)} cash</div></div>
+    <div class="metric"><div class="mlabel">CTO TR</div><div class="mval">${eur(c2)}</div><div class="msub" style="color:#aaa">${eur(liqC2)} cash</div></div>`;
 }
 
 function sortGroups(groups){
@@ -1288,15 +1424,21 @@ function renderRep(){
   });
 
   // Construire les données triées par poids réel
-  const entreprises=Object.entries(rw)
+  const SEUIL_AUTRES=2.0; // % en dessous duquel on regroupe
+  const entreprisesRaw=Object.entries(rw)
     .map(([tk,v])=>{
-      // Trouver le nom
       const pos=positions.find(p=>p.ticker===tk);
       const name=pos?.name||tk;
       return {name,ticker:tk,pct:v.pct,direct:v.direct,indirect:v.indirect};
     })
     .filter(e=>e.pct>0.05)
     .sort((a,b)=>b.pct-a.pct);
+
+  // Séparer les > 2% et les < 2%
+  const entreprises=entreprisesRaw.filter(e=>e.pct>=SEUIL_AUTRES);
+  const autresPct=entreprisesRaw.filter(e=>e.pct<SEUIL_AUTRES).reduce((s,e)=>s+e.pct,0);
+  const autresNb=entreprisesRaw.filter(e=>e.pct<SEUIL_AUTRES).length;
+  if(autresPct>0) entreprises.push({name:`Autres (${autresNb} titres)`,ticker:'_autres',pct:autresPct,direct:0,indirect:0});
 
   const enColors=entreprises.map((_,i)=>GC[i%GC.length]);
   pie('cv-ent',entreprises.map(e=>e.name),entreprises.map(e=>e.pct),enColors);
@@ -1315,12 +1457,7 @@ function renderManualPrices(){
     positions.filter(p=>YH_TICKER[p.ticker]===null&&!ETF_META[p.ticker])
     .map(p=>[p.ticker,p])
   ).values()];
-  // Ajouter aussi les tickers des transactions qui sont en manuel mais pas en positions
-  const extraTickers=Object.keys(YH_TICKER).filter(t=>YH_TICKER[t]===null&&!targets.find(p=>p.ticker===t));
-  extraTickers.forEach(t=>{
-    const tx=txs.find(tx=>tx.ticker===t);
-    if(tx) targets.push({ticker:t,name:tx.name||t,account:'CTO2',pru:tx.price,qty:0});
-  });
+  // NE PAS ajouter les tickers vendus (BY6.F, LYMS.DE) qui ne sont plus en positions
   if(!targets.length){
     document.getElementById('manual-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:4px 0">Aucun titre en saisie manuelle.</p>';
     return;
@@ -1352,6 +1489,28 @@ function setManualPrice(ticker,val){
   else{delete manualPrices[ticker];delete prices[ticker];}
   localStorage.setItem('pf_manual',JSON.stringify(manualPrices));
   renderMetrics();renderPositions();renderManualPrices();
+}
+
+function renderLiquidites(){
+  const el=document.getElementById('liq-tbl');if(!el)return;
+  const comptes=[
+    {key:'CTO1',label:'IBKR',badge:'bcto1'},
+    {key:'CTO2',label:'TR',badge:'bcto2'},
+    {key:'PEA', label:'PEA',badge:'bpea'},
+  ];
+  el.innerHTML=comptes.map(c=>`
+    <div class="manual-row">
+      <span class="badge ${c.badge}" style="min-width:50px;text-align:center">${c.label}</span>
+      <input type="number" value="${liquidites[c.key]||0}" placeholder="Cash €" step="0.01" style="width:130px"
+        oninput="setLiquidite('${c.key}',this.value)">
+      <div style="font-size:12px;font-weight:600;color:#1a1a1a">${eur(liquidites[c.key]||0)}</div>
+    </div>`).join('');
+}
+function setLiquidite(key,val){
+  const v=parseFloat(val)||0;
+  liquidites[key]=v;
+  localStorage.setItem('pf_liquidites',JSON.stringify(liquidites));
+  renderMetrics();
 }
 
 // ── GÉRER ──────────────────────────────────────────────────────────
@@ -1458,7 +1617,7 @@ function go(name,el){
   if(name==='repartition') renderRep();
   if(name==='fondamentaux') renderFondamentaux();
   if(name==='watchlist') renderWatchlist();
-  if(name==='gerer') renderManualPrices();
+  if(name==='gerer'){renderManualPrices();renderLiquidites();}
   if(name==='performance') renderPerformance();
 }
 
