@@ -559,12 +559,13 @@ async function fetchQuote(ticker){
   }catch(e){return null;}
 }
 async function fetchFX(){
-  // Essai 1 : via notre proxy Yahoo Finance
+  // Essai 1 : USDEUR=X via proxy Yahoo
   try{
     const r=await fetch(`${API_BASE}?symbol=USDEUR%3DX`);
     if(r.ok){
       const d=await r.json();
-      if(d.price&&d.price>0.5&&d.price<1.5){fxUSD=d.price;return;}
+      // Taux USD/EUR doit être entre 0.70 et 1.00 en 2026
+      if(d.price&&d.price>0.70&&d.price<1.00){fxUSD=d.price;return;}
     }
   }catch(e){}
   // Essai 2 : EURUSD inversé
@@ -572,11 +573,19 @@ async function fetchFX(){
     const r=await fetch(`${API_BASE}?symbol=EURUSD%3DX`);
     if(r.ok){
       const d=await r.json();
-      if(d.price&&d.price>0.5&&d.price<2){fxUSD=1/d.price;return;}
+      if(d.price&&d.price>1.00&&d.price<1.50){fxUSD=1/d.price;return;}
     }
   }catch(e){}
-  // Fallback : taux réaliste mars 2026 (meilleur que 0.92 codé en dur)
-  if(fxUSD===0.92) fxUSD=0.919; // sera mis à jour au prochain essai
+  // Essai 3 : GC=F (or) ignoré, on essaie un autre proxy public
+  try{
+    const r=await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    if(r.ok){
+      const d=await r.json();
+      if(d.rates?.EUR&&d.rates.EUR>0.70&&d.rates.EUR<1.00){fxUSD=d.rates.EUR;return;}
+    }
+  }catch(e){}
+  // Fallback réaliste mars 2026 (~0.918)
+  fxUSD=0.918;
 }
 
 async function loadAll(){
@@ -989,7 +998,14 @@ function renderPerfChartPct(){
         y:{
           ticks:{callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},
           grid:{color:'#f5f5f5'},
-          afterDataLimits:axis=>{const m=Math.max(Math.abs(axis.min),Math.abs(axis.max));axis.min=-m*1.1;axis.max=m*1.1;}
+          suggestedMin:-10,
+          suggestedMax:10,
+          afterDataLimits:axis=>{
+            // Marge de 15% au-dessus/dessous du vrai min/max, pas symétrique
+            const padding=Math.max(2,Math.abs(axis.max-axis.min)*0.15);
+            axis.min=axis.min-padding;
+            axis.max=axis.max+padding;
+          }
         },
         x:{ticks:{maxTicksLimit:10,maxRotation:0},grid:{display:false}}
       }
