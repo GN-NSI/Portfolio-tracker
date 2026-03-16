@@ -52,6 +52,8 @@ tr:last-child td{border-bottom:none}
 .bar-fg{height:100%;border-radius:2px}
 .pane{display:none}.pane.active{display:block}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem}
+.four-col{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem}
 .legend{font-size:12px}
 .li{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
@@ -62,29 +64,35 @@ input:focus,select:focus{outline:none;border-color:#999}
 .dev-tag{font-size:9px;color:#aaa;vertical-align:middle;margin-left:2px}
 .manual-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #f0f0f0}
 .manual-row:last-child{border-bottom:none}
-/* Ratio colors */
 .r-green{color:#16a34a;font-weight:600}
 .r-orange{color:#d97706;font-weight:600}
 .r-red{color:#dc2626;font-weight:600}
 .r-na{color:#aaa}
-/* 52w bar */
 .w52-wrap{position:relative;height:6px;background:#eee;border-radius:3px;width:80px;display:inline-block;vertical-align:middle}
 .w52-fill{position:absolute;top:0;left:0;height:100%;background:#2563eb;border-radius:3px}
 .w52-dot{position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;background:#1a1a1a;transform:translateX(-50%)}
-/* Seuils editor */
 .seuils-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px}
 .seuil-item{background:#f9f9f9;border-radius:8px;padding:10px 12px}
 .seuil-label{font-size:11px;font-weight:600;color:#666;margin-bottom:6px}
 .seuil-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px}
 .seuil-row span{min-width:80px;color:#666}
 .seuil-row input{width:60px;padding:3px 6px;font-size:11px}
-/* Watchlist */
 .wl-price-bar{position:relative;height:4px;background:#eee;border-radius:2px;width:100px;display:inline-block;vertical-align:middle;margin:0 6px}
 .wl-price-fill{position:absolute;top:0;left:0;height:100%;border-radius:2px}
-.alert-badge{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#dcfce7;color:#166534}
-.alert-badge.reached{background:#dcfce7;color:#166534;animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-@media(max-width:600px){.two-col{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}
+/* Performance */
+.perf-card{background:#fff;border-radius:12px;padding:16px 20px;border:1px solid #eee;text-align:center}
+.perf-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.perf-val{font-size:26px;font-weight:700;line-height:1}
+.perf-sub{font-size:11px;color:#aaa;margin-top:5px}
+.perf-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;margin-top:6px}
+.perf-badge.twr{background:#ede9fe;color:#6d28d9}
+.perf-badge.simple{background:#f3f4f6;color:#6b7280}
+.snapshot-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f5f5f5;flex-wrap:wrap}
+.snapshot-row:last-child{border-bottom:none}
+/* PV summary */
+.pv-total-row td{font-weight:700;background:#fafafa;border-top:2px solid #eee}
+@media(max-width:700px){.two-col,.three-col,.four-col{grid-template-columns:1fr 1fr}.metrics{grid-template-columns:1fr 1fr}}
+@media(max-width:450px){.four-col{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -96,6 +104,7 @@ input:focus,select:focus{outline:none;border-color:#999}
   <div class="metrics" id="mbar"></div>
   <div class="tabs">
     <button class="tab active" onclick="go('positions',this)">Positions</button>
+    <button class="tab" onclick="go('performance',this)">Performance</button>
     <button class="tab" onclick="go('repartition',this)">Répartition</button>
     <button class="tab" onclick="go('fondamentaux',this)">Fondamentaux</button>
     <button class="tab" onclick="go('watchlist',this)">Watchlist</button>
@@ -110,6 +119,45 @@ input:focus,select:focus{outline:none;border-color:#999}
       <div id="pst" class="status sload">Chargement…</div>
       <div id="pprog" class="prog" style="display:none"><div class="prog-fill" id="pfill" style="width:0%"></div></div>
       <div style="overflow-x:auto"><div id="pos-tbl"></div></div>
+    </div>
+  </div>
+
+  <!-- PERFORMANCE -->
+  <div id="pane-performance" class="pane">
+    <!-- Cartes perf -->
+    <div class="four-col" id="perf-cards"></div>
+
+    <!-- PV réalisée + latente par titre -->
+    <div class="card">
+      <div class="ctitle">Plus-values par titre</div>
+      <div style="overflow-x:auto"><div id="perf-pv-tbl"></div></div>
+    </div>
+
+    <!-- Graphique courbe valeur -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="ctitle" style="margin-bottom:0">Évolution de la valeur du portefeuille</div>
+        <span style="font-size:11px;color:#aaa">Basé sur les snapshots saisis</span>
+      </div>
+      <canvas id="cv-perf" height="80"></canvas>
+    </div>
+
+    <!-- Snapshots -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="ctitle" style="margin-bottom:0">Snapshots de valeur <span style="font-size:10px;font-weight:400;color:#aaa;text-transform:none;letter-spacing:0">(nécessaires pour le TWR)</span></div>
+        <button class="btn btn-sm" onclick="toggleSnapHelp()">? Aide</button>
+      </div>
+      <div id="snap-help" style="display:none" class="warn" >
+        Saisis la valeur totale de ton portefeuille (en €) à des dates clés : 1er janvier de chaque année, et lors de gros apports/retraits. Plus tu as de points, plus le TWR est précis. La valeur d'aujourd'hui est calculée automatiquement.
+      </div>
+      <div id="snap-list"></div>
+      <div class="rform" style="margin-top:12px">
+        <input type="date" id="snap-date" style="width:140px">
+        <input type="number" id="snap-val" placeholder="Valeur totale €" style="width:150px" step="0.01">
+        <input type="text" id="snap-note" placeholder="Note (ex: 1er jan 2024)" style="width:160px">
+        <button class="btn btn-primary" onclick="addSnapshot()">+ Ajouter</button>
+      </div>
     </div>
   </div>
 
@@ -168,7 +216,7 @@ input:focus,select:focus{outline:none;border-color:#999}
           <select id="tx-tk"></select>
           <select id="tx-tp"><option value="buy">Achat</option><option value="sell">Vente</option></select>
           <input type="number" id="tx-q" placeholder="Qté" style="width:75px" step="0.0001">
-          <input type="number" id="tx-p" placeholder="Prix" style="width:85px" step="0.01">
+          <input type="number" id="tx-p" placeholder="Prix unitaire €" style="width:85px" step="0.01">
           <input type="date" id="tx-d">
           <input type="text" id="tx-n" placeholder="Note" style="width:110px">
           <button class="btn" onclick="addTx()">+ Ajouter</button>
@@ -214,11 +262,16 @@ const ETF_META={
   'FR0013412012':{yhTicker:'PAASI.PA',name:'ETF Tech Émergents'},
   'FR0011882364':{yhTicker:'AWAT.PA',name:'ETF Eau'},
 };
+
+// null = cours manuel obligatoire, string = ticker Yahoo à utiliser
 const YH_TICKER={
   '6857.T':null,
   '005930.KS':null,
+  'BY6.F':null,
+  'LYMS.DE':null,
   'BESI.AS':'BESI.AS',
 };
+
 const ETF_HOLDINGS={
   'FR0011550185':[
     {name:'Apple',ticker:'AAPL',pct:7.2,sector:'Tech',geo:'USA'},
@@ -256,7 +309,9 @@ const ETF_HOLDINGS={
     {name:'A.O. Smith',ticker:'AOS',pct:3.2,sector:'Eau/Infra',geo:'USA'},
   ]
 };
+
 const DEFAULTS=[
+  // CTO1 — IBKR (PRU en USD)
   {ticker:'AMZN',name:'Amazon',qty:2,pru:215.64,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'BKNG',name:'Booking',qty:0.005,pru:3930.52,account:'CTO1',sector:'Consommation',geo:'USA'},
   {ticker:'COIN',name:'Coinbase',qty:1,pru:140.45,account:'CTO1',sector:'Finance',geo:'USA'},
@@ -268,28 +323,57 @@ const DEFAULTS=[
   {ticker:'RDDT',name:'Reddit',qty:3,pru:139.84,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'TSM',name:'TSMC',qty:1,pru:295.64,account:'CTO1',sector:'Tech',geo:'Asie'},
   {ticker:'V',name:'Visa',qty:0.75,pru:327.4,account:'CTO1',sector:'Finance',geo:'USA'},
-  {ticker:'6857.T',name:'Advantest',qty:3,pru:109.98,account:'CTO2',sector:'Tech',geo:'Asie'},
-  {ticker:'005930.KS',name:'Samsung',qty:0.124891,pru:1149,account:'CTO2',sector:'Tech',geo:'Asie'},
+  // CTO2 — Trade Republic (PRU en EUR)
+  {ticker:'6857.T',name:'Advantest',qty:3.09709,pru:109.98,account:'CTO2',sector:'Tech',geo:'Asie'},
+  {ticker:'005930.KS',name:'Samsung',qty:0.124891,pru:1149.27,account:'CTO2',sector:'Tech',geo:'Asie'},
   {ticker:'GOOGL',name:'Alphabet',qty:1,pru:148.92,account:'CTO2',sector:'Tech',geo:'USA'},
-  {ticker:'TSM',name:'TSMC',qty:0.609037,pru:254.5,account:'CTO2',sector:'Tech',geo:'Asie'},
-  {ticker:'COIN',name:'Coinbase',qty:1,pru:167.56,account:'CTO2',sector:'Finance',geo:'USA'},
-  {ticker:'UBER',name:'Uber',qty:2.5,pru:68.7,account:'CTO2',sector:'Consommation',geo:'USA'},
+  {ticker:'TSM',name:'TSMC',qty:0.609037,pru:256.13,account:'CTO2',sector:'Tech',geo:'Asie'},
+  {ticker:'COIN',name:'Coinbase',qty:1.002521,pru:167.56,account:'CTO2',sector:'Finance',geo:'USA'},
+  {ticker:'UBER',name:'Uber',qty:2.5,pru:69.10,account:'CTO2',sector:'Consommation',geo:'USA'},
   {ticker:'NVDA',name:'Nvidia',qty:1,pru:121.94,account:'CTO2',sector:'Tech',geo:'USA'},
-  {ticker:'SPGI',name:'S&P Global',qty:0.351957,pru:340.95,account:'CTO2',sector:'Finance',geo:'USA'},
+  {ticker:'SPGI',name:'S&P Global',qty:0.351957,pru:343.80,account:'CTO2',sector:'Finance',geo:'USA'},
+  // PEA
   {ticker:'FR0011550185',name:'ETF S&P 500',qty:42,pru:26.76,account:'PEA',sector:'Multi',geo:'USA'},
   {ticker:'FR0013412012',name:'ETF Tech Émergents',qty:22,pru:29.92,account:'PEA',sector:'Tech',geo:'Émergents'},
   {ticker:'FR0011882364',name:'ETF Eau',qty:8,pru:31.62,account:'PEA',sector:'Eau/Infra',geo:'Multi'},
   {ticker:'BESI.AS',name:'BESI',qty:1,pru:171.86,account:'PEA',sector:'Tech',geo:'Europe'},
 ];
 
+// ── TRANSACTIONS PAR DÉFAUT (TR historique) ──────────────────────
+// prix = prix unitaire en EUR, qty = nombre de titres
+const DEFAULT_TXS=[
+  // ACHATS TR 2024
+  {ticker:'MSTR',name:'MicroStrategy',type:'buy',qty:1.0017,price:285.52,date:'2024-11-11',note:'TR — achat',account:'CTO2'},
+  {ticker:'005930.KS',name:'Samsung',type:'buy',qty:0.249781,price:1149.04,date:'2024-09-10',note:'TR — achat',account:'CTO2'},
+  {ticker:'6857.T',name:'Advantest',type:'buy',qty:1,price:108,date:'2024-10-06',note:'TR — achat',account:'CTO2'},
+  {ticker:'TSM',name:'TSMC',type:'buy',qty:0.609037,price:256.13,date:'2024-11-12',note:'TR — achat',account:'CTO2'},
+  {ticker:'UBER',name:'Uber',type:'buy',qty:2.5,price:69.10,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
+  {ticker:'6857.T',name:'Advantest',type:'buy',qty:0.907091,price:110.24,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
+  // VENTES TR 2024
+  {ticker:'MSTR',name:'MicroStrategy',type:'sell',qty:1.0017,price:383.26,date:'2024-07-14',note:'TR — vente totale',account:'CTO2'},
+  {ticker:'BY6.F',name:'BYD',type:'sell',qty:5.00442,price:31.29,date:'2024-11-04',note:'TR — vente totale',account:'CTO2'},
+  {ticker:'LYMS.DE',name:'Nasdaq 100 EUR',type:'sell',qty:3.0906,price:87.83,date:'2024-12-22',note:'TR — vente totale',account:'CTO2'},
+  // ACHATS TR 2025
+  {ticker:'COIN',name:'Coinbase',type:'buy',qty:1.002521,price:167.56,date:'2025-04-02',note:'TR — achat',account:'CTO2'},
+  {ticker:'BY6.F',name:'BYD',type:'buy',qty:4.00442,price:45.45,date:'2025-04-02',note:'TR — achat',account:'CTO2'},
+  {ticker:'BY6.F',name:'BYD',type:'buy',qty:1,price:42.23,date:'2025-04-04',note:'TR — achat',account:'CTO2'},
+  {ticker:'GOOGL',name:'Alphabet',type:'buy',qty:1,price:148.92,date:'2025-06-03',note:'TR — achat',account:'CTO2'},
+  {ticker:'NVDA',name:'Nvidia',type:'buy',qty:1,price:121.94,date:'2025-06-03',note:'TR — achat',account:'CTO2'},
+  {ticker:'LYMS.DE',name:'Nasdaq 100 EUR',type:'buy',qty:3.0906,price:76.68,date:'2025-06-03',note:'TR — achat',account:'CTO2'},
+  {ticker:'6857.T',name:'Advantest',type:'buy',qty:1.09,price:114.76,date:'2025-01-20',note:'TR — achat',account:'CTO2'},
+  {ticker:'SPGI',name:'S&P Global',type:'buy',qty:0.351957,price:343.80,date:'2025-03-12',note:'TR — achat',account:'CTO2'},
+  // VENTES TR 2025
+  {ticker:'005930.KS',name:'Samsung',type:'sell',qty:0.12489,price:2002.56,date:'2025-01-14',note:'TR — vente partielle',account:'CTO2'},
+];
+
 // Seuils par défaut
 const DEFAULT_SEUILS={
-  per:    {label:'PER actuel',    g:20,  r:35,  dir:'high'},
-  perf:   {label:'PER forward',  g:18,  r:30,  dir:'high'},
-  peg:    {label:'PEG',          g:1,   r:2,   dir:'high'},
-  epsGrowth:{label:'Croissance BPA (%)', g:15, r:5, dir:'low'},
-  margin: {label:'Marge nette (%)',      g:15, r:5, dir:'low'},
-  revGrowth:{label:'Revenus YoY (%)',    g:10, r:0, dir:'low'},
+  per:      {label:'PER actuel',          g:20, r:35, dir:'high'},
+  perf:     {label:'PER forward',         g:18, r:30, dir:'high'},
+  peg:      {label:'PEG',                 g:1,  r:2,  dir:'high'},
+  epsGrowth:{label:'Croissance BPA (%)',  g:15, r:5,  dir:'low'},
+  margin:   {label:'Marge nette (%)',     g:15, r:5,  dir:'low'},
+  revGrowth:{label:'Revenus YoY (%)',     g:10, r:0,  dir:'low'},
 };
 
 let positions=[],prices={},fxUSD=0.92,txs=[],charts2={},expanded=new Set();
@@ -298,34 +382,47 @@ let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
 let watchlist=JSON.parse(localStorage.getItem('pf_watchlist')||'[]');
 let watchlistPrices={};
 let seuils=JSON.parse(localStorage.getItem('pf_seuils')||JSON.stringify(DEFAULT_SEUILS));
+let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
+let perfChart=null;
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
+
 function load(){
   try{
-    const p=localStorage.getItem('pfv_pos');positions=p?JSON.parse(p):JSON.parse(JSON.stringify(DEFAULTS));
-    const t=localStorage.getItem('pfv_tx');txs=t?JSON.parse(t):[];
-  }catch(e){positions=JSON.parse(JSON.stringify(DEFAULTS));txs=[];}
+    const p=localStorage.getItem('pfv_pos');
+    positions=p?JSON.parse(p):JSON.parse(JSON.stringify(DEFAULTS));
+    const t=localStorage.getItem('pfv_tx');
+    if(t){
+      txs=JSON.parse(t);
+    } else {
+      // Premier chargement : on injecte les transactions historiques TR
+      txs=JSON.parse(JSON.stringify(DEFAULT_TXS));
+    }
+  }catch(e){
+    positions=JSON.parse(JSON.stringify(DEFAULTS));
+    txs=JSON.parse(JSON.stringify(DEFAULT_TXS));
+  }
 }
 function save(){
-  try{localStorage.setItem('pfv_pos',JSON.stringify(positions));localStorage.setItem('pfv_tx',JSON.stringify(txs));}catch(e){}
+  try{
+    localStorage.setItem('pfv_pos',JSON.stringify(positions));
+    localStorage.setItem('pfv_tx',JSON.stringify(txs));
+  }catch(e){}
 }
 
 // ── FETCH ──────────────────────────────────────────────────────────
-async function fetchQuote(ticker) {
-  if (manualPrices[ticker] && manualPrices[ticker] > 0) return manualPrices[ticker];
-  
-  // Ticker explicitement marqué null → cours manuel uniquement
-  if (ticker in YH_TICKER && YH_TICKER[ticker] === null) return null;
-  
-  // ETF → utiliser le yhTicker mappé, sinon ticker direct
-  const yh = ETF_META[ticker]?.yhTicker || YH_TICKER[ticker] || ticker;
-  
-  try {
-    const r = await fetch(`${API_BASE}?symbol=${encodeURIComponent(yh)}`);
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.price || null;
-  } catch(e) { return null; }
+async function fetchQuote(ticker){
+  if(manualPrices[ticker]&&manualPrices[ticker]>0) return manualPrices[ticker];
+  // Ticker explicitement null → cours manuel uniquement
+  if(ticker in YH_TICKER && YH_TICKER[ticker]===null) return null;
+  // ETF → yhTicker mappé, sinon ticker Yahoo direct
+  const yh=ETF_META[ticker]?.yhTicker||YH_TICKER[ticker]||ticker;
+  try{
+    const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(yh)}`);
+    if(!r.ok) return null;
+    const d=await r.json();
+    return d.price||null;
+  }catch(e){return null;}
 }
 async function fetchFX(){
   try{
@@ -334,23 +431,6 @@ async function fetchFX(){
     const d=await r.json();
     if(d.price&&d.price>0)fxUSD=d.price;
   }catch(e){}
-}
-async function fetchFundamentals(ticker){
-  // Alpha Vantage OVERVIEW endpoint via notre proxy
-  try{
-    const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(ticker)}&type=overview`);
-    if(!r.ok) return null;
-    const d=await r.json();
-    return d||null;
-  }catch(e){return null;}
-}
-async function fetch52Week(ticker){
-  try{
-    const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(ticker)}&type=quote`);
-    if(!r.ok) return null;
-    const d=await r.json();
-    return d||null;
-  }catch(e){return null;}
 }
 
 async function loadAll(){
@@ -368,7 +448,6 @@ async function loadAll(){
     document.getElementById('pfill').style.width=Math.round((done/unique.length)*100)+'%';
     renderMetrics();renderPositions();
   }));
-  // Watchlist prices
   await Promise.all(watchlist.map(async w=>{
     const p=await fetchQuote(w.ticker);
     if(p&&p>0) watchlistPrices[w.ticker]=p;
@@ -444,11 +523,347 @@ function etfExpo(ticker,etfMV){
   return rows;
 }
 
+// ── PERFORMANCE — CALCULS ──────────────────────────────────────────
+
+// PV réalisée par ticker depuis l'historique des transactions
+function computeRealizedPnL(){
+  // On calcule pour chaque ticker : total encaissé (ventes) - total payé (achats sur les lots vendus)
+  // Méthode FIFO simplifiée
+  const result={}; // ticker → {realized, costOfSold}
+
+  // Grouper par ticker
+  const byTicker={};
+  txs.forEach(t=>{
+    if(!byTicker[t.ticker]) byTicker[t.ticker]=[];
+    byTicker[t.ticker].push({...t});
+  });
+
+  Object.entries(byTicker).forEach(([ticker,txList])=>{
+    // Trier par date
+    const sorted=[...txList].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const lots=[]; // FIFO queue : {qty, price}
+    let realized=0;
+
+    sorted.forEach(tx=>{
+      if(tx.type==='buy'){
+        lots.push({qty:tx.qty,price:tx.price});
+      } else if(tx.type==='sell'){
+        let remaining=tx.qty;
+        const salePrice=tx.price;
+        while(remaining>0.000001&&lots.length>0){
+          const lot=lots[0];
+          const consumed=Math.min(lot.qty,remaining);
+          realized+=consumed*(salePrice-lot.price);
+          lot.qty-=consumed;
+          remaining-=consumed;
+          if(lot.qty<0.000001) lots.shift();
+        }
+      }
+    });
+    if(realized!==0) result[ticker]={realized};
+  });
+  return result;
+}
+
+// Valeur totale actuelle du portefeuille
+function totalMV(){
+  return positions.reduce((s,p)=>s+mvEUR(p),0);
+}
+
+// Calcul TWR à partir des snapshots
+// TWR = product of sub-period returns
+// sub-period return = V_fin / V_deb_ajusté_flux - 1
+function computeTWR(fromDate){
+  if(!snapshots.length) return null;
+
+  const now=new Date();
+  const from=new Date(fromDate);
+  const currentVal=totalMV();
+
+  // Trier les snapshots
+  const sorted=[...snapshots]
+    .map(s=>({...s,d:new Date(s.date)}))
+    .filter(s=>s.d>=from)
+    .sort((a,b)=>a.d-b.d);
+
+  if(!sorted.length){
+    // Pas de snapshot dans la période → perf simple
+    return null;
+  }
+
+  // Trouver le snapshot de référence juste avant fromDate
+  const before=[...snapshots]
+    .map(s=>({...s,d:new Date(s.date)}))
+    .filter(s=>s.d<from)
+    .sort((a,b)=>b.d-a.d);
+
+  const startSnap=before.length?before[0]:sorted[0];
+  if(!startSnap) return null;
+
+  // Points : [startSnap, ...snapshots in period, current]
+  const points=[
+    {val:startSnap.value,d:new Date(startSnap.date)},
+    ...sorted.map(s=>({val:s.value,d:s.d})),
+    {val:currentVal,d:now}
+  ];
+
+  // TWR = produit des rendements de sous-périodes
+  let twr=1;
+  for(let i=1;i<points.length;i++){
+    if(points[i-1].val>0){
+      twr*=(points[i].val/points[i-1].val);
+    }
+  }
+  return (twr-1)*100;
+}
+
+// Perf simple (pas de snapshot requis) : utilise valeur actuelle vs valeur à la date
+function computeSimplePerf(fromDate){
+  // Cherche le snapshot le plus proche de la date
+  const sorted=[...snapshots]
+    .map(s=>({...s,d:new Date(s.date)}))
+    .filter(s=>s.d<=new Date(fromDate))
+    .sort((a,b)=>b.d-a.d);
+  if(!sorted.length) return null;
+  const ref=sorted[0].value;
+  const cur=totalMV();
+  return ((cur-ref)/ref)*100;
+}
+
+function getDateNDaysAgo(n){
+  const d=new Date();d.setDate(d.getDate()-n);
+  return d.toISOString().split('T')[0];
+}
+function getYTDDate(){
+  return new Date().getFullYear()+'-01-01';
+}
+function get1WeekAgo(){return getDateNDaysAgo(7);}
+function get1MonthAgo(){return getDateNDaysAgo(30);}
+
+// ── PERFORMANCE — RENDER ───────────────────────────────────────────
+function renderPerformance(){
+  renderPerfCards();
+  renderPerfPvTable();
+  renderPerfChart();
+  renderSnapshots();
+}
+
+function renderPerfCards(){
+  const cur=totalMV();
+  // All Time TWR
+  const allTimeSnap=[...snapshots].sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
+  const allTimeTWR=allTimeSnap?computeTWR(allTimeSnap.date):null;
+  const allTimeSimple=allTimeSnap?((cur-allTimeSnap.value)/allTimeSnap.value*100):null;
+
+  // YTD
+  const ytdTWR=computeTWR(getYTDDate());
+  const ytdSimple=computeSimplePerf(getYTDDate());
+
+  // 1 mois
+  const m1Simple=computeSimplePerf(get1MonthAgo());
+  // 1 semaine
+  const w1Simple=computeSimplePerf(get1WeekAgo());
+
+  // PV réalisée totale
+  const realized=computeRealizedPnL();
+  const totalRealized=Object.values(realized).reduce((s,v)=>s+(v.realized||0),0);
+  // PV latente
+  const latente=positions.reduce((s,p)=>s+pnlEUR(p),0);
+
+  const cards=[
+    {label:'YTD',val:ytdTWR??ytdSimple,badge:ytdTWR!=null?'TWR':'simple',sub:ytdTWR!=null?'Time-Weighted':'Besoin snapshot'},
+    {label:'1 mois',val:m1Simple,badge:'simple',sub:'vs snapshot le plus proche'},
+    {label:'1 semaine',val:w1Simple,badge:'simple',sub:'vs snapshot le plus proche'},
+    {label:'All Time',val:allTimeTWR??allTimeSimple,badge:allTimeTWR!=null?'TWR':'simple',sub:allTimeSnap?`depuis ${allTimeSnap.date}`:'Aucun snapshot'},
+  ];
+
+  document.getElementById('perf-cards').innerHTML=cards.map(c=>{
+    const hasVal=c.val!=null&&!isNaN(c.val);
+    const color=!hasVal?'#aaa':c.val>=0?'#16a34a':'#dc2626';
+    return `<div class="perf-card">
+      <div class="perf-label">${c.label}</div>
+      <div class="perf-val" style="color:${color}">${hasVal?(c.val>=0?'+':'')+c.val.toFixed(2)+'%':'—'}</div>
+      <div><span class="perf-badge ${c.badge}">${c.badge.toUpperCase()}</span></div>
+      <div class="perf-sub">${c.sub}</div>
+    </div>`;
+  }).join('');
+
+  // Carte PV réalisée
+  const pvCards=`
+    <div class="perf-card" style="border-left:3px solid #2563eb">
+      <div class="perf-label">PV latente</div>
+      <div class="perf-val" style="color:${latente>=0?'#16a34a':'#dc2626'}">${eur(latente)}</div>
+      <div class="perf-sub">Positions ouvertes actuelles</div>
+    </div>
+    <div class="perf-card" style="border-left:3px solid #9333ea">
+      <div class="perf-label">PV réalisée</div>
+      <div class="perf-val" style="color:${totalRealized>=0?'#16a34a':'#dc2626'}">${eur(totalRealized)}</div>
+      <div class="perf-sub">Historique transactions</div>
+    </div>
+    <div class="perf-card" style="border-left:3px solid #1a1a1a">
+      <div class="perf-label">PV totale</div>
+      <div class="perf-val" style="color:${(latente+totalRealized)>=0?'#16a34a':'#dc2626'}">${eur(latente+totalRealized)}</div>
+      <div class="perf-sub">Latente + réalisée</div>
+    </div>`;
+
+  // Insérer les cartes PV dans une deuxième rangée
+  const existingGrid=document.getElementById('perf-cards');
+  // Vérifier si on a déjà le second grid
+  let pvGrid=document.getElementById('perf-pv-cards');
+  if(!pvGrid){
+    pvGrid=document.createElement('div');
+    pvGrid.id='perf-pv-cards';
+    pvGrid.className='three-col';
+    existingGrid.parentNode.insertBefore(pvGrid,existingGrid.nextSibling);
+  }
+  pvGrid.innerHTML=pvCards;
+}
+
+function renderPerfPvTable(){
+  const realized=computeRealizedPnL();
+  const groups=consolidate().sort((a,b)=>b.totalMV-a.totalMV);
+
+  let h=`<table><thead><tr>
+    <th class="left">Titre</th>
+    <th>Val. marché</th>
+    <th>PV latente €</th>
+    <th>PV latente %</th>
+    <th>PV réalisée €</th>
+    <th>PV totale €</th>
+  </tr></thead><tbody>`;
+
+  let totLatente=0,totRealized=0;
+
+  groups.forEach(g=>{
+    const lat=g.pnl;
+    const real=realized[g.ticker]?.realized||0;
+    const tot=lat+real;
+    totLatente+=lat;totRealized+=real;
+    const latCl=lat>=0?'pos':'neg';
+    const totCl=tot>=0?'pos':'neg';
+    h+=`<tr>
+      <td style="font-weight:600">${g.name} <span style="font-size:10px;color:#aaa">${g.ticker}</span></td>
+      <td>${eur(g.totalMV)}</td>
+      <td class="${latCl}">${eur(lat)}</td>
+      <td class="${latCl}">${fpct(g.pnlPct)}</td>
+      <td style="color:${real===0?'#aaa':real>0?'#16a34a':'#dc2626'};font-weight:${real!==0?600:400}">${real!==0?eur(real):'—'}</td>
+      <td class="${totCl}" style="font-weight:600">${eur(tot)}</td>
+    </tr>`;
+  });
+
+  const grandTot=totLatente+totRealized;
+  h+=`<tr class="pv-total-row">
+    <td>TOTAL</td>
+    <td>—</td>
+    <td class="${totLatente>=0?'pos':'neg'}">${eur(totLatente)}</td>
+    <td>—</td>
+    <td class="${totRealized>=0?'pos':'neg'}">${eur(totRealized)}</td>
+    <td class="${grandTot>=0?'pos':'neg'}">${eur(grandTot)}</td>
+  </tr>`;
+
+  h+='</tbody></table>';
+  document.getElementById('perf-pv-tbl').innerHTML=h;
+}
+
+function renderPerfChart(){
+  const ctx=document.getElementById('cv-perf');
+  if(!ctx) return;
+
+  if(perfChart){perfChart.destroy();perfChart=null;}
+
+  const cur=totalMV();
+  const now=new Date().toISOString().split('T')[0];
+
+  const points=[...snapshots]
+    .sort((a,b)=>new Date(a.date)-new Date(b.date))
+    .map(s=>({x:s.date,y:s.value}));
+
+  // Ajouter le point actuel si on a des cours
+  if(cur>100) points.push({x:now,y:Math.round(cur*100)/100});
+
+  if(points.length<2){
+    ctx.parentNode.insertAdjacentHTML('beforeend','<p style="text-align:center;font-size:12px;color:#aaa;margin-top:8px">Ajoute au moins 2 snapshots pour afficher la courbe.</p>');
+    return;
+  }
+
+  perfChart=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:points.map(p=>p.x),
+      datasets:[{
+        label:'Valeur portefeuille (€)',
+        data:points.map(p=>p.y),
+        borderColor:'#1a1a1a',
+        backgroundColor:'rgba(26,26,26,0.06)',
+        borderWidth:2,
+        pointRadius:4,
+        pointBackgroundColor:'#1a1a1a',
+        fill:true,
+        tension:0.3,
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>' '+eur(c.parsed.y)}}
+      },
+      scales:{
+        y:{ticks:{callback:v=>eur(v)},grid:{color:'#f0f0f0'}},
+        x:{grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ── SNAPSHOTS ──────────────────────────────────────────────────────
+function renderSnapshots(){
+  const el=document.getElementById('snap-list');
+  if(!snapshots.length){
+    el.innerHTML='<p style="font-size:12px;color:#aaa;padding:6px 0">Aucun snapshot. Ajoute la valeur de ton portefeuille à des dates clés.</p>';
+    return;
+  }
+  const sorted=[...snapshots].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  el.innerHTML=sorted.map((s,i)=>`
+    <div class="snapshot-row">
+      <span style="font-size:12px;font-weight:600;min-width:100px">${s.date}</span>
+      <span style="font-size:14px;font-weight:700;color:#1a1a1a;min-width:110px">${eur(s.value)}</span>
+      <span style="font-size:12px;color:#888;flex:1">${s.note||''}</span>
+      <button onclick="delSnapshot(${snapshots.indexOf(s)})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button>
+    </div>`).join('');
+}
+function addSnapshot(){
+  const date=document.getElementById('snap-date').value;
+  const val=parseFloat(document.getElementById('snap-val').value);
+  const note=document.getElementById('snap-note').value.trim();
+  if(!date||isNaN(val)||val<=0) return;
+  // Remplacer si même date
+  const idx=snapshots.findIndex(s=>s.date===date);
+  if(idx>=0) snapshots[idx]={date,value:val,note};
+  else snapshots.push({date,value:val,note});
+  snapshots.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  localStorage.setItem('pf_snapshots',JSON.stringify(snapshots));
+  document.getElementById('snap-date').value='';
+  document.getElementById('snap-val').value='';
+  document.getElementById('snap-note').value='';
+  renderPerformance();
+}
+function delSnapshot(i){
+  snapshots.splice(i,1);
+  localStorage.setItem('pf_snapshots',JSON.stringify(snapshots));
+  renderPerformance();
+}
+function toggleSnapHelp(){
+  const el=document.getElementById('snap-help');
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
 // ── RENDER ─────────────────────────────────────────────────────────
 function render(){
   renderMetrics();renderPositions();renderManage();populateTxSel();renderTx();renderWatchlist();
   if(document.getElementById('pane-repartition').classList.contains('active')) renderRep();
   if(document.getElementById('pane-fondamentaux').classList.contains('active')) renderFondamentaux();
+  if(document.getElementById('pane-performance').classList.contains('active')) renderPerformance();
   if(document.getElementById('pane-gerer').classList.contains('active')) renderManualPrices();
 }
 
@@ -549,7 +964,6 @@ function toggleRow(gi,ticker){
 async function loadFundamentals(){
   const el=document.getElementById('fond-status');
   el.className='status sload';el.textContent='Chargement des ratios via Alpha Vantage…';
-  // Actions directes seulement (pas ETFs, pas les tickers null)
   const tickers=[...new Set(
     positions.filter(p=>!ETF_META[p.ticker]&&YH_TICKER[p.ticker]!==null&&p.account!=='PEA')
     .map(p=>p.ticker)
@@ -558,14 +972,11 @@ async function loadFundamentals(){
   for(const tk of tickers){
     try{
       const r=await fetch(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${tk}&apikey=B082RLP22U8F1BLR`);
-      if(r.ok){
-        const d=await r.json();
-        if(d&&d.Symbol) fundamentals[tk]=d;
-      }
+      if(r.ok){const d=await r.json();if(d&&d.Symbol)fundamentals[tk]=d;}
     }catch(e){}
     done++;
     el.textContent=`Chargement des ratios… ${done}/${tickers.length}`;
-    await new Promise(res=>setTimeout(res,1200)); // respecter limite AV
+    await new Promise(res=>setTimeout(res,1200));
   }
   localStorage.setItem('pf_fundamentals',JSON.stringify(fundamentals));
   el.className='status sok';
@@ -592,26 +1003,14 @@ function renderFondamentaux(){
     return;
   }
   let h=`<table><thead><tr>
-    <th class="left">Titre</th>
-    <th>Cours €</th>
-    <th>PER</th>
-    <th>PER Fwd</th>
-    <th>PEG</th>
-    <th>Croiss. BPA</th>
-    <th>Marge nette</th>
-    <th>Revenus YoY</th>
-    <th>52s bas</th>
-    <th>52s haut</th>
-    <th>Position 52s</th>
+    <th class="left">Titre</th><th>Cours €</th><th>PER</th><th>PER Fwd</th><th>PEG</th>
+    <th>Croiss. BPA</th><th>Marge nette</th><th>Revenus YoY</th><th>52s bas</th><th>52s haut</th><th>Position 52s</th>
   </tr></thead><tbody>`;
-
   tickers.forEach(tk=>{
     const pos=positions.find(p=>p.ticker===tk);
     const f=fundamentals[tk]||{};
     const cp=getCoursEUR(pos||{ticker:tk,account:'CTO1'});
     const cpUSD=prices[tk]||null;
-
-    // Ratios depuis AV OVERVIEW
     const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
     const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
     const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
@@ -620,8 +1019,6 @@ function renderFondamentaux(){
     const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
     const w52l=f['52WeekLow']&&f['52WeekLow']!=='None'?parseFloat(f['52WeekLow']):null;
     const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
-
-    // Position dans la range 52s (en USD car AV donne en USD)
     let w52bar='<span class="r-na">—</span>';
     if(w52l&&w52h&&cpUSD){
       const pct52=Math.min(100,Math.max(0,((cpUSD-w52l)/(w52h-w52l))*100));
@@ -631,17 +1028,12 @@ function renderFondamentaux(){
         <span style="font-size:10px;color:#666">${pct52.toFixed(0)}%</span>
       </div>`;
     }
-
     const name=pos?.name||f.Name||tk;
     h+=`<tr>
       <td style="font-weight:600">${name} <span style="font-size:10px;color:#aaa">${tk}</span></td>
       <td>${cp?eur(cp):'<span class="r-na">—</span>'}</td>
-      <td>${ratioCell('per',per)}</td>
-      <td>${ratioCell('perf',perf)}</td>
-      <td>${ratioCell('peg',peg)}</td>
-      <td>${ratioCell('epsGrowth',epsG,'%')}</td>
-      <td>${ratioCell('margin',margin,'%')}</td>
-      <td>${ratioCell('revGrowth',revG,'%')}</td>
+      <td>${ratioCell('per',per)}</td><td>${ratioCell('perf',perf)}</td><td>${ratioCell('peg',peg)}</td>
+      <td>${ratioCell('epsGrowth',epsG,'%')}</td><td>${ratioCell('margin',margin,'%')}</td><td>${ratioCell('revGrowth',revG,'%')}</td>
       <td style="font-size:11px;color:#666">${w52l?'$'+w52l.toFixed(2):'—'}</td>
       <td style="font-size:11px;color:#666">${w52h?'$'+w52h.toFixed(2):'—'}</td>
       <td>${w52bar}</td>
@@ -649,8 +1041,8 @@ function renderFondamentaux(){
   });
   h+='</tbody></table>';
   h+=`<div style="text-align:right;margin-top:10px">
-    <button class="btn btn-sm" onclick="loadFundamentals()">↻ Rafraîchir les ratios</button>
-    <span style="font-size:11px;color:#aaa;margin-left:8px">Utilise ~${tickers.length} appels AV</span>
+    <button class="btn btn-sm" onclick="loadFundamentals()">↻ Rafraîchir</button>
+    <span style="font-size:11px;color:#aaa;margin-left:8px">~${tickers.length} appels AV</span>
   </div>`;
   document.getElementById('fond-tbl').innerHTML=h;
 }
@@ -664,8 +1056,7 @@ function toggleSeuils(){
 function renderSeuilsPanel(){
   let h='';
   Object.entries(seuils).forEach(([key,s])=>{
-    h+=`<div class="seuil-item">
-      <div class="seuil-label">${s.label}</div>
+    h+=`<div class="seuil-item"><div class="seuil-label">${s.label}</div>
       ${s.dir==='high'?
         `<div class="seuil-row"><span class="r-green">Vert si ≤</span><input type="number" id="s-${key}-g" value="${s.g}" step="0.1"></div>
          <div class="seuil-row"><span class="r-red">Rouge si ></span><input type="number" id="s-${key}-r" value="${s.r}" step="0.1"></div>`
@@ -693,30 +1084,18 @@ function saveSeuils(){
 function renderWatchlist(){
   const el=document.getElementById('wl-tbl');
   if(!watchlist.length){
-    el.innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucun titre en watchlist. Ajoute des tickers à surveiller.</p>';
+    el.innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucun titre en watchlist.</p>';
     return;
   }
   let h=`<table><thead><tr>
-    <th class="left">Titre</th>
-    <th>Cours actuel</th>
-    <th>Prix cible</th>
-    <th>Distance</th>
-    <th>Progression</th>
-    <th>PER</th>
-    <th>PER Fwd</th>
-    <th>PEG</th>
-    <th>Croiss. BPA</th>
-    <th>Note</th>
-    <th></th>
+    <th class="left">Titre</th><th>Cours actuel</th><th>Prix cible</th><th>Distance</th><th>Progression</th>
+    <th>PER</th><th>PER Fwd</th><th>PEG</th><th>Croiss. BPA</th><th>Note</th><th></th>
   </tr></thead><tbody>`;
-
   watchlist.forEach((w,i)=>{
     const cp=watchlistPrices[w.ticker]||null;
     const cpEUR=cp?(w.currency==='USD'?cp*fxUSD:cp):null;
     const target=w.target?parseFloat(w.target):null;
     const f=fundamentals[w.ticker]||{};
-
-    // Distance au prix cible
     let distCell='<span class="r-na">—</span>';
     let progressBar='';
     if(cpEUR&&target){
@@ -724,32 +1103,23 @@ function renderWatchlist(){
       const reached=cpEUR>=target;
       distCell=`<span class="${reached?'r-green':dist<0?'r-red':'r-orange'}">${reached?'✓ Atteint':fpct(dist)}</span>`;
       const fillPct=Math.min(100,Math.max(0,(cpEUR/target)*100));
-      progressBar=`<div class="wl-price-bar" style="width:90px">
-        <div class="wl-price-fill" style="width:${fillPct}%;background:${reached?'#16a34a':'#2563eb'}"></div>
-      </div>`;
+      progressBar=`<div class="wl-price-bar" style="width:90px"><div class="wl-price-fill" style="width:${fillPct}%;background:${reached?'#16a34a':'#2563eb'}"></div></div>`;
     }
-
     const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
     const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
     const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
     const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
-
     h+=`<tr>
       <td style="font-weight:600">${w.name||w.ticker} <span style="font-size:10px;color:#aaa">${w.ticker}</span></td>
       <td>${cpEUR?eur(cpEUR):'<span class="r-na">—</span>'}</td>
       <td>${target?eur(target):'<span class="r-na">—</span>'}</td>
-      <td>${distCell}</td>
-      <td>${progressBar||'<span class="r-na">—</span>'}</td>
-      <td>${ratioCell('per',per)}</td>
-      <td>${ratioCell('perf',perf)}</td>
-      <td>${ratioCell('peg',peg)}</td>
-      <td>${ratioCell('epsGrowth',epsG,'%')}</td>
+      <td>${distCell}</td><td>${progressBar||'<span class="r-na">—</span>'}</td>
+      <td>${ratioCell('per',per)}</td><td>${ratioCell('perf',perf)}</td><td>${ratioCell('peg',peg)}</td><td>${ratioCell('epsGrowth',epsG,'%')}</td>
       <td style="font-size:11px;color:#888;max-width:150px;white-space:normal">${w.note||'—'}</td>
       <td><button onclick="delWatchlist(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
     </tr>`;
   });
   h+='</tbody></table>';
-  // Bouton pour charger les ratios de la watchlist
   const wlTickers=watchlist.map(w=>w.ticker).filter(t=>!fundamentals[t]);
   if(wlTickers.length){
     h+=`<div style="margin-top:10px;font-size:11px;color:#aaa">
@@ -758,7 +1128,6 @@ function renderWatchlist(){
   }
   el.innerHTML=h;
 }
-
 async function loadWatchlistFundamentals(){
   const tickers=watchlist.map(w=>w.ticker).filter(t=>!fundamentals[t]);
   for(const tk of tickers){
@@ -771,7 +1140,6 @@ async function loadWatchlistFundamentals(){
   localStorage.setItem('pf_fundamentals',JSON.stringify(fundamentals));
   renderWatchlist();
 }
-
 function addWatchlist(){
   const tk=document.getElementById('wl-tk').value.trim().toUpperCase();
   const nm=document.getElementById('wl-nm').value.trim()||tk;
@@ -780,10 +1148,7 @@ function addWatchlist(){
   if(!tk) return;
   watchlist.push({ticker:tk,name:nm,target,note,currency:'USD'});
   localStorage.setItem('pf_watchlist',JSON.stringify(watchlist));
-  document.getElementById('wl-tk').value='';
-  document.getElementById('wl-nm').value='';
-  document.getElementById('wl-target').value='';
-  document.getElementById('wl-note').value='';
+  ['wl-tk','wl-nm','wl-target','wl-note'].forEach(id=>document.getElementById(id).value='');
   loadAll();
 }
 function delWatchlist(i){
@@ -831,6 +1196,12 @@ function renderManualPrices(){
     positions.filter(p=>YH_TICKER[p.ticker]===null&&!ETF_META[p.ticker])
     .map(p=>[p.ticker,p])
   ).values()];
+  // Ajouter aussi les tickers des transactions qui sont en manuel mais pas en positions
+  const extraTickers=Object.keys(YH_TICKER).filter(t=>YH_TICKER[t]===null&&!targets.find(p=>p.ticker===t));
+  extraTickers.forEach(t=>{
+    const tx=txs.find(tx=>tx.ticker===t);
+    if(tx) targets.push({ticker:t,name:tx.name||t,account:'CTO2',pru:tx.price,qty:0});
+  });
   if(!targets.length){
     document.getElementById('manual-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:4px 0">Aucun titre en saisie manuelle.</p>';
     return;
@@ -840,7 +1211,7 @@ function renderManualPrices(){
     const cur=manualPrices[p.ticker]||'';
     const cp=cur?parseFloat(cur):null;
     const pru=getPRUeur(p);
-    const pv=cp?((cp-pru)/pru*100):null;
+    const pv=cp&&pru>0?((cp-pru)/pru*100):null;
     const pvCl=pv===null?'':pv>=0?'pos':'neg';
     h+=`<div class="manual-row">
       <div style="min-width:130px">
@@ -849,8 +1220,8 @@ function renderManualPrices(){
       </div>
       <input type="number" value="${cur}" placeholder="Cours en €" step="0.01" style="width:130px"
         oninput="setManualPrice('${p.ticker}',this.value)">
-      <div style="font-size:12px;min-width:80px">PRU : <strong>${eur(pru)}</strong></div>
-      ${cp?`<div style="font-size:12px;font-weight:600" class="${pvCl}">${fpct(pv)} — ${eur(cp)}</div>`:'<div style="font-size:12px;color:#aaa">—</div>'}
+      ${pru>0?`<div style="font-size:12px;min-width:80px">PRU : <strong>${eur(pru)}</strong></div>`:'<div style="font-size:12px;color:#aaa;min-width:80px">—</div>'}
+      ${cp&&pru>0?`<div style="font-size:12px;font-weight:600" class="${pvCl}">${fpct(pv)} — ${eur(cp)}</div>`:'<div style="font-size:12px;color:#aaa">—</div>'}
       <div style="font-size:11px;color:#aaa">Saisi depuis TR • prioritaire</div>
     </div>`;
   });
@@ -893,16 +1264,29 @@ function populateTxSel(){
     .map(([t,n])=>`<option value="${t}">${n}</option>`).join('');
 }
 function renderTx(){
-  if(!txs.length){document.getElementById('tx-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucune transaction.</p>';return;}
-  let h=`<table><thead><tr><th class="left">Date</th><th class="left">Titre</th><th>Type</th><th>Qté</th><th>Prix</th><th>Total</th><th>Note</th><th></th></tr></thead><tbody>`;
-  [...txs].reverse().forEach((t,i)=>{
-    const ri=txs.length-1-i;
-    h+=`<tr><td>${t.date||'—'}</td><td style="font-weight:600">${t.ticker}</td>
-      <td><span class="badge ${t.type==='buy'?'bcto1':'bpea'}">${t.type==='buy'?'Achat':'Vente'}</span></td>
-      <td>${t.qty}</td><td>${eur(t.price)}</td>
+  if(!txs.length){
+    document.getElementById('tx-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucune transaction.</p>';
+    return;
+  }
+  let h=`<table><thead><tr>
+    <th class="left">Date</th><th class="left">Titre</th><th>Cpte</th><th>Type</th><th>Qté</th><th>Prix unit.</th><th>Total</th><th>Note</th><th></th>
+  </tr></thead><tbody>`;
+  [...txs].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach((t,si)=>{
+    const ri=txs.findIndex(x=>x===t)||si;
+    const isBuy=t.type==='buy';
+    const acct=t.account||'CTO2';
+    const badge=acct==='PEA'?'bpea':acct==='CTO1'?'bcto1':'bcto2';
+    const lab=acct==='PEA'?'PEA':acct==='CTO1'?'IBKR':'TR';
+    h+=`<tr>
+      <td>${t.date||'—'}</td>
+      <td style="font-weight:600">${t.name||t.ticker} <span style="font-size:10px;color:#aaa">${t.ticker}</span></td>
+      <td><span class="badge ${badge}">${lab}</span></td>
+      <td><span class="badge ${isBuy?'bcto1':'serr'}" style="${!isBuy?'background:#fee2e2;color:#991b1b':''}">${isBuy?'Achat':'Vente'}</span></td>
+      <td>${t.qty}</td>
+      <td>${eur(t.price)}</td>
       <td style="font-weight:600">${eur(t.qty*t.price)}</td>
       <td style="color:#aaa;font-size:11px">${t.note||''}</td>
-      <td><button onclick="delTx(${ri})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
+      <td><button onclick="delTx(${txs.indexOf(t)})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
     </tr>`;
   });
   h+='</tbody></table>';
@@ -927,13 +1311,22 @@ function addTx(){
   const qty=parseFloat(document.getElementById('tx-q').value);
   const pr=parseFloat(document.getElementById('tx-p').value);
   if(isNaN(qty)||isNaN(pr))return;
-  txs.push({ticker:document.getElementById('tx-tk').value,type:document.getElementById('tx-tp').value,
-    qty,price:pr,date:document.getElementById('tx-d').value,note:document.getElementById('tx-n').value.trim()});
+  const ticker=document.getElementById('tx-tk').value;
+  const pos=positions.find(p=>p.ticker===ticker);
+  txs.push({
+    ticker,
+    name:pos?.name||ticker,
+    type:document.getElementById('tx-tp').value,
+    qty,price:pr,
+    date:document.getElementById('tx-d').value,
+    note:document.getElementById('tx-n').value.trim(),
+    account:pos?.account||'CTO2'
+  });
   save();renderTx();
 }
 function exportCSV(){
-  const h='Date,Ticker,Type,Quantité,Prix,Total,Note\n';
-  const rows=txs.map(t=>`${t.date||''},${t.ticker},${t.type==='buy'?'Achat':'Vente'},${t.qty},${t.price},${(t.qty*t.price).toFixed(2)},${t.note||''}`).join('\n');
+  const h='Date,Ticker,Nom,Compte,Type,Quantité,Prix unitaire,Total,Note\n';
+  const rows=txs.map(t=>`${t.date||''},${t.ticker},${t.name||''},${t.account||''},${t.type==='buy'?'Achat':'Vente'},${t.qty},${t.price},${(t.qty*t.price).toFixed(2)},${t.note||''}`).join('\n');
   const b=new Blob([h+rows],{type:'text/csv;charset=utf-8;'});
   const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='transactions.csv';a.click();URL.revokeObjectURL(u);
 }
@@ -941,11 +1334,13 @@ function exportCSV(){
 function go(name,el){
   document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('pane-'+name).classList.add('active');el.classList.add('active');
+  document.getElementById('pane-'+name).classList.add('active');
+  el.classList.add('active');
   if(name==='repartition') renderRep();
   if(name==='fondamentaux') renderFondamentaux();
   if(name==='watchlist') renderWatchlist();
   if(name==='gerer') renderManualPrices();
+  if(name==='performance') renderPerformance();
 }
 
 load();loadAll();
