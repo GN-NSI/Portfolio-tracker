@@ -497,6 +497,8 @@ const DEFAULT_SEUILS={
   epsGrowth:{label:'Croissance BPA (%)',  g:15, r:5,  dir:'low'},
   margin:   {label:'Marge nette (%)',     g:15, r:5,  dir:'low'},
   revGrowth:{label:'Revenus YoY (%)',     g:10, r:0,  dir:'low'},
+  pfcf:     {label:'P/FCF',              g:20, r:40, dir:'high'},
+  fcfGrowth:{label:'Croissance FCF (%)', g:15, r:0,  dir:'low'},
 };
 
 let positions=[],prices={},fxUSD=0.92,txs=[],charts2={},expanded=new Set();
@@ -1260,7 +1262,29 @@ async function loadFundamentals(){
       if(r.ok){const d=await r.json();if(d&&d.Symbol)fundamentals[tk]=d;}
     }catch(e){}
     done++;
-    el.textContent=`Chargement des ratios… ${done}/${tickers.length}`;
+    el.textContent=`Chargement des ratios… ${done}/${tickers.length*2}`;
+    await new Promise(res=>setTimeout(res,1200));
+    // CASH_FLOW pour FCF
+    try{
+      const r=await fetch(`https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${tk}&apikey=B082RLP22U8F1BLR`);
+      if(r.ok){
+        const d=await r.json();
+        if(d&&d.annualReports&&d.annualReports.length>=1){
+          const cf0=d.annualReports[0];
+          const cf1=d.annualReports[1];
+          const fcf0=cf0.operatingCashflow&&cf0.capitalExpenditures
+            ?parseInt(cf0.operatingCashflow)-Math.abs(parseInt(cf0.capitalExpenditures)):null;
+          const fcf1=cf1?.operatingCashflow&&cf1?.capitalExpenditures
+            ?parseInt(cf1.operatingCashflow)-Math.abs(parseInt(cf1.capitalExpenditures)):null;
+          if(fundamentals[tk]){
+            fundamentals[tk]._fcf=fcf0;
+            fundamentals[tk]._fcfPrev=fcf1;
+          }
+        }
+      }
+    }catch(e){}
+    done++;
+    el.textContent=`Chargement des ratios… ${done}/${tickers.length*2}`;
     await new Promise(res=>setTimeout(res,1200));
   }
   localStorage.setItem('pf_fundamentals',JSON.stringify(fundamentals));
@@ -1311,10 +1335,18 @@ function renderFondamentaux(){
     const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
     const margin=f.ProfitMargin&&f.ProfitMargin!=='None'?parseFloat(f.ProfitMargin)*100:null;
     const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
-    const w52l=f['52WeekLow']&&f['52WeekLow']!=='None'?parseFloat(f['52WeekLow']):null;
     const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
-    const pct52=w52l&&w52h&&cpUSD?Math.min(100,Math.max(0,((cpUSD-w52l)/(w52h-w52l))*100)):null;
-    return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52l,w52h,pct52,name:pos?.name||f.Name||tk};
+    const mktCap=f.MarketCapitalization&&f.MarketCapitalization!=='None'?parseFloat(f.MarketCapitalization):null;
+    // FCF depuis CASH_FLOW
+    const fcf=f._fcf||null;
+    const fcfPrev=f._fcfPrev||null;
+    // P/FCF = Market Cap / FCF
+    const pfcf=mktCap&&fcf&&fcf>0?mktCap/fcf:null;
+    // Croissance FCF YoY
+    const fcfG=fcf&&fcfPrev&&fcfPrev!==0?((fcf-fcfPrev)/Math.abs(fcfPrev))*100:null;
+    // ATH% = (cours actuel - 52s haut) / 52s haut * 100 (négatif = sous l'ATH)
+    const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
+    return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,athPct,name:pos?.name||f.Name||tk};
   });
 
   // Tri
@@ -1335,27 +1367,31 @@ function renderFondamentaux(){
     ${thFond('epsG','Croiss. BPA')}
     ${thFond('margin','Marge nette')}
     ${thFond('revG','Revenus YoY')}
-    <th>52s bas</th><th>52s haut</th>
-    ${thFond('pct52','Position 52s')}
+    ${thFond('pfcf','P/FCF')}
+    ${thFond('fcfG','Croiss. FCF')}
+    ${thFond('athPct','vs ATH (52s)')}
   </tr></thead><tbody>`;
 
-  rows.forEach(({tk,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52l,w52h,pct52,name})=>{
-    let w52bar='<span class="r-na">—</span>';
-    if(pct52!=null){
-      const color=pct52>80?'#dc2626':pct52>50?'#d97706':'#16a34a';
-      w52bar=`<div style="display:flex;align-items:center;gap:4px">
-        <div class="w52-wrap"><div class="w52-fill" style="width:${pct52}%;background:${color}"></div></div>
-        <span style="font-size:10px;color:#666">${pct52.toFixed(0)}%</span>
-      </div>`;
+  rows.forEach(({tk,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,athPct,name})=>{
+    // ATH cell : rouge si proche du haut, vert si loin
+    let athCell='<span class="r-na">—</span>';
+    if(athPct!=null){
+      const color=athPct>=-5?'#dc2626':athPct>=-20?'#d97706':'#16a34a';
+      athCell=`<span style="color:${color};font-weight:600">${athPct.toFixed(1)}%</span>
+        ${w52h?`<span style="font-size:10px;color:#aaa;margin-left:3px">($${w52h.toFixed(0)})</span>`:''}`;
     }
     h+=`<tr>
       <td style="font-weight:600">${name} <span style="font-size:10px;color:#aaa">${tk}</span></td>
       <td>${cp?eur(cp):'<span class="r-na">—</span>'}</td>
-      <td>${ratioCell('per',per)}</td><td>${ratioCell('perf',perf)}</td><td>${ratioCell('peg',peg)}</td>
-      <td>${ratioCell('epsGrowth',epsG,'%')}</td><td>${ratioCell('margin',margin,'%')}</td><td>${ratioCell('revGrowth',revG,'%')}</td>
-      <td style="font-size:11px;color:#666">${w52l?'$'+w52l.toFixed(2):'—'}</td>
-      <td style="font-size:11px;color:#666">${w52h?'$'+w52h.toFixed(2):'—'}</td>
-      <td>${w52bar}</td>
+      <td>${ratioCell('per',per)}</td>
+      <td>${ratioCell('perf',perf)}</td>
+      <td>${ratioCell('peg',peg)}</td>
+      <td>${ratioCell('epsGrowth',epsG,'%')}</td>
+      <td>${ratioCell('margin',margin,'%')}</td>
+      <td>${ratioCell('revGrowth',revG,'%')}</td>
+      <td>${ratioCell('pfcf',pfcf)}</td>
+      <td>${ratioCell('fcfGrowth',fcfG,'%')}</td>
+      <td>${athCell}</td>
     </tr>`;
   });
   h+='</tbody></table>';
