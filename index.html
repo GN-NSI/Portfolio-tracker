@@ -1272,13 +1272,15 @@ async function loadFundamentals(){
             PEGRatio:     d.pegRatio!=null?d.pegRatio.toString():'None',
             ProfitMargin: d.profitMarginPct!=null?(d.profitMarginPct/100).toString():'None',
             QuarterlyRevenueGrowthYOY: 'None',
-            QuarterlyEarningsGrowthYOY: d.earningsGrowth!=null?(d.earningsGrowth/100).toString():'None',
-            '52WeekHigh': d.fiftyTwoWeekHigh!=null?d.fiftyTwoWeekHigh.toString():'None',
-            '52WeekLow':  d.fiftyTwoWeekLow!=null?d.fiftyTwoWeekLow.toString():'None',
+            QuarterlyEarningsGrowthYOY: 'None',
+            '52WeekHigh': 'None',
+            '52WeekLow':  'None',
             MarketCapitalization: d.mktCap!=null?d.mktCap.toString():'None',
-            _fcf:       d.freeCashflow||null,
-            _fcfGrowth: d.fcfGrowth||null,
-            _pfcf:      d.pfcf||null,
+            _fcf:         d.freeCashflow||null,
+            _fcfGrowth:   d.fcfGrowth||null,
+            _pfcf:        d.pfcf||null,
+            _fcfYield:    d.freeCashFlowYield||null,
+            _roe:         d.returnOnEquity||null,
           };
         }
       }
@@ -1343,12 +1345,11 @@ function renderFondamentaux(){
     const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
     const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
     const mktCap=f.MarketCapitalization&&f.MarketCapitalization!=='None'?parseFloat(f.MarketCapitalization):null;
-    // FCF depuis Yahoo (pré-calculé dans le proxy)
     const fcf=f._fcf||null;
     const fcfPrev=f._fcfPrev||null;
     const pfcf=f._pfcf||(mktCap&&fcf&&fcf>0?mktCap/fcf:null);
     const fcfG=f._fcfGrowth||(fcf&&fcfPrev&&fcfPrev!==0?((fcf-fcfPrev)/Math.abs(fcfPrev))*100:null);
-    // ATH% = (cours actuel - 52s haut) / 52s haut * 100 (négatif = sous l'ATH)
+    // ATH% : cours actuel vs 52s haut (depuis prices Yahoo)
     const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
     return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,athPct,name:pos?.name||f.Name||tk};
   });
