@@ -1251,50 +1251,55 @@ function toggleRow(gi,ticker){
 async function loadFundamentals(){
   const el=document.getElementById('fond-status');
   el.style.display='inline-block';
-  el.className='status sload';el.textContent='Chargement des ratios via Alpha Vantage…';
+  el.className='status sload';
+  el.textContent='Chargement des ratios via Yahoo Finance…';
+
   const tickers=[...new Set(
-    positions.filter(p=>!ETF_META[p.ticker]&&YH_TICKER[p.ticker]!==null&&p.account!=='PEA')
+    positions.filter(p=>!ETF_META[p.ticker]&&p.account!=='PEA')
     .map(p=>p.ticker)
   )];
+
   let done=0;
   for(const tk of tickers){
     try{
-      const r=await fetch(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${tk}&apikey=15NGI3OVXJDJP05R`);
-      if(r.ok){const d=await r.json();if(d&&d.Symbol)fundamentals[tk]=d;}
-    }catch(e){}
-    done++;
-    el.textContent=`Chargement des ratios… ${done}/${tickers.length*2}`;
-    await new Promise(res=>setTimeout(res,1200));
-    // CASH_FLOW pour FCF
-    try{
-      const r=await fetch(`https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${tk}&apikey=15NGI3OVXJDJP05R`);
+      const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(tk)}&type=fundamentals`);
       if(r.ok){
         const d=await r.json();
-        if(d&&d.annualReports&&d.annualReports.length>=1){
-          const cf0=d.annualReports[0];
-          const cf1=d.annualReports[1];
-          const fcf0=cf0.operatingCashflow&&cf0.capitalExpenditures
-            ?parseInt(cf0.operatingCashflow)-Math.abs(parseInt(cf0.capitalExpenditures)):null;
-          const fcf1=cf1?.operatingCashflow&&cf1?.capitalExpenditures
-            ?parseInt(cf1.operatingCashflow)-Math.abs(parseInt(cf1.capitalExpenditures)):null;
-          if(fundamentals[tk]){
-            fundamentals[tk]._fcf=fcf0;
-            fundamentals[tk]._fcfPrev=fcf1;
-          }
+        if(d&&d.symbol){
+          // Adapter le format pour rester compatible avec le reste du code
+          fundamentals[tk]={
+            Symbol:tk,
+            // PER : Yahoo ne retourne pas trailingPE directement dans quoteSummary facilement
+            // on le calcule depuis currentPrice / trailingEps si dispo, sinon on le laisse vide
+            ForwardPE:    d.forwardPE?.toString()||'None',
+            PEGRatio:     d.pegRatio?.toString()||'None',
+            ProfitMargin: d.profitMargin!=null?(d.profitMargin/100).toString():'None',
+            QuarterlyRevenueGrowthYOY: d.revenueGrowth!=null?(d.revenueGrowth/100).toString():'None',
+            QuarterlyEarningsGrowthYOY: d.earningsGrowth!=null?(d.earningsGrowth/100).toString():'None',
+            '52WeekHigh': d.fiftyTwoWeekHigh?.toString()||'None',
+            '52WeekLow':  d.fiftyTwoWeekLow?.toString()||'None',
+            MarketCapitalization: 'None', // pas utilisé directement
+            // FCF données brutes
+            _fcf:       d.freeCashflow||null,
+            _fcfGrowth: d.fcfGrowth||null,
+            _pfcf:      d.pfcf||null,
+            _targetPrice: d.targetMeanPrice||null,
+          };
         }
       }
     }catch(e){}
     done++;
-    el.textContent=`Chargement des ratios… ${done}/${tickers.length*2}`;
-    await new Promise(res=>setTimeout(res,1200));
+    el.textContent=`Chargement… ${done}/${tickers.length} — Yahoo Finance`;
+    await new Promise(res=>setTimeout(res,400)); // Yahoo est plus permissif qu'AV
   }
+
   localStorage.setItem('pf_fundamentals',JSON.stringify(fundamentals));
   const nbLoaded=Object.keys(fundamentals).length;
   if(nbLoaded===0){
     el.style.display='none';
   } else {
     el.className='status sok';
-    el.textContent=`Ratios chargés pour ${nbLoaded} titres — Alpha Vantage`;
+    el.textContent=`Ratios chargés pour ${nbLoaded} titres — Yahoo Finance (sans quota)`;
   }
   renderFondamentaux();
 }
@@ -1343,13 +1348,11 @@ function renderFondamentaux(){
     const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
     const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
     const mktCap=f.MarketCapitalization&&f.MarketCapitalization!=='None'?parseFloat(f.MarketCapitalization):null;
-    // FCF depuis CASH_FLOW
+    // FCF depuis Yahoo (pré-calculé dans le proxy)
     const fcf=f._fcf||null;
     const fcfPrev=f._fcfPrev||null;
-    // P/FCF = Market Cap / FCF
-    const pfcf=mktCap&&fcf&&fcf>0?mktCap/fcf:null;
-    // Croissance FCF YoY
-    const fcfG=fcf&&fcfPrev&&fcfPrev!==0?((fcf-fcfPrev)/Math.abs(fcfPrev))*100:null;
+    const pfcf=f._pfcf||(mktCap&&fcf&&fcf>0?mktCap/fcf:null);
+    const fcfG=f._fcfGrowth||(fcf&&fcfPrev&&fcfPrev!==0?((fcf-fcfPrev)/Math.abs(fcfPrev))*100:null);
     // ATH% = (cours actuel - 52s haut) / 52s haut * 100 (négatif = sous l'ATH)
     const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
     return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,athPct,name:pos?.name||f.Name||tk};
@@ -1548,15 +1551,30 @@ function renderWatchlist(){
   el.innerHTML=h;
 }
 async function loadWatchlistFundamentals(){
-  // Alpha Vantage ne supporte que les tickers US (pas .PA .KS .AS etc)
   const tickers=watchlist.map(w=>w.ticker).filter(t=>!fundamentals[t]&&isAVCompatible(t));
   if(!tickers.length){renderWatchlist();return;}
   for(const tk of tickers){
     try{
-      const r=await fetch(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${tk}&apikey=15NGI3OVXJDJP05R`);
-      if(r.ok){const d=await r.json();if(d&&d.Symbol)fundamentals[tk]=d;}
+      const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(tk)}&type=fundamentals`);
+      if(r.ok){
+        const d=await r.json();
+        if(d&&d.symbol){
+          fundamentals[tk]={
+            Symbol:tk,
+            ForwardPE:    d.forwardPE?.toString()||'None',
+            PEGRatio:     d.pegRatio?.toString()||'None',
+            ProfitMargin: d.profitMargin!=null?(d.profitMargin/100).toString():'None',
+            QuarterlyRevenueGrowthYOY: d.revenueGrowth!=null?(d.revenueGrowth/100).toString():'None',
+            QuarterlyEarningsGrowthYOY: d.earningsGrowth!=null?(d.earningsGrowth/100).toString():'None',
+            '52WeekHigh': d.fiftyTwoWeekHigh?.toString()||'None',
+            _fcf: d.freeCashflow||null,
+            _fcfGrowth: d.fcfGrowth||null,
+            _pfcf: d.pfcf||null,
+          };
+        }
+      }
     }catch(e){}
-    await new Promise(res=>setTimeout(res,1200));
+    await new Promise(res=>setTimeout(res,400));
   }
   localStorage.setItem('pf_fundamentals',JSON.stringify(fundamentals));
   renderWatchlist();
