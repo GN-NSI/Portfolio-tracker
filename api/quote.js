@@ -9,36 +9,44 @@ module.exports = async (req, res) => {
   if (type === 'fundamentals') {
     try {
       const modules = [
-        'defaultKeyStatistics',   // PER, PEG, forwardPE, priceToBook
-        'financialData',          // currentPrice, profitMargins, revenueGrowth, freeCashflow
-        'incomeStatementHistory', // revenus annuels pour YoY
-        'cashflowStatementHistory', // FCF historique pour croissance
+        'defaultKeyStatistics',
+        'financialData',
+        'cashflowStatementHistory',
       ].join(',');
 
-      const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`;
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json',
-        }
-      });
+      // Essai 1 : query1
+      let response = await fetch(
+        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } }
+      );
+      // Essai 2 : query2 si query1 échoue
+      if (!response.ok) {
+        response = await fetch(
+          `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`,
+          { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } }
+        );
+      }
 
-      if (!response.ok) return res.status(502).json({ error: 'Yahoo Finance indisponible' });
+      if (!response.ok) return res.status(502).json({ error: `Yahoo quoteSummary ${response.status}` });
 
       const data = await response.json();
       const result = data?.quoteSummary?.result?.[0];
-      if (!result) return res.status(404).json({ error: `Fondamentaux introuvables pour ${symbol}` });
+      if (!result) {
+        const errMsg = data?.quoteSummary?.error?.description || 'Données introuvables';
+        return res.status(404).json({ error: errMsg, symbol });
+      }
 
-      const ks  = result.defaultKeyStatistics || {};
-      const fd  = result.financialData || {};
-      const cf  = result.cashflowStatementHistory?.cashflowStatements || [];
+      const ks = result.defaultKeyStatistics || {};
+      const fd = result.financialData || {};
+      const cf = result.cashflowStatementHistory?.cashflowStatements || [];
 
-      // FCF = operatingCashflow - capitalExpenditures (deux dernières années)
-      const fcf0 = cf[0] ? (cf[0].totalCashFromOperatingActivities?.raw || 0) - Math.abs(cf[0].capitalExpenditures?.raw || 0) : null;
-      const fcf1 = cf[1] ? (cf[1].totalCashFromOperatingActivities?.raw || 0) - Math.abs(cf[1].capitalExpenditures?.raw || 0) : null;
+      const fcf0 = cf[0]
+        ? (cf[0].totalCashFromOperatingActivities?.raw || 0) - Math.abs(cf[0].capitalExpenditures?.raw || 0)
+        : (fd.freeCashflow?.raw || null);
+      const fcf1 = cf[1]
+        ? (cf[1].totalCashFromOperatingActivities?.raw || 0) - Math.abs(cf[1].capitalExpenditures?.raw || 0)
+        : null;
       const fcfGrowth = fcf0 && fcf1 && fcf1 !== 0 ? ((fcf0 - fcf1) / Math.abs(fcf1)) * 100 : null;
-
-      // Market cap pour P/FCF
       const mktCap = ks.enterpriseValue?.raw || null;
       const pfcf = mktCap && fcf0 && fcf0 > 0 ? mktCap / fcf0 : null;
 
