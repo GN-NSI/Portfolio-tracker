@@ -5,53 +5,48 @@ module.exports = async (req, res) => {
   const { symbol, type } = req.query;
   if (!symbol) return res.status(400).json({ error: 'symbol requis' });
 
-  // ── MODE FUNDAMENTALS : Financial Modeling Prep (endpoints gratuits) ─
+  // ── MODE FUNDAMENTALS : Financial Modeling Prep (API stable 2025) ──
   if (type === 'fundamentals') {
     const FMP_KEY = 'yrFxAuUHv6XgKGxfXol6sGWVxmEq6tBr';
     try {
-      const [rProfile, rMetrics, rCF] = await Promise.all([
-        fetch(`https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(symbol)}?apikey=${FMP_KEY}`),
-        fetch(`https://financialmodelingprep.com/api/v3/key-metrics-ttm/${encodeURIComponent(symbol)}?apikey=${FMP_KEY}`),
-        fetch(`https://financialmodelingprep.com/api/v3/cash-flow-statement/${encodeURIComponent(symbol)}?limit=2&apikey=${FMP_KEY}`)
+      const [rMetrics, rRatios, rCF] = await Promise.all([
+        fetch(`https://financialmodelingprep.com/stable/key-metrics-ttm?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`),
+        fetch(`https://financialmodelingprep.com/stable/ratios-ttm?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`),
+        fetch(`https://financialmodelingprep.com/stable/cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=2&apikey=${FMP_KEY}`)
       ]);
 
-      // Profile : PER, marge, 52s haut/bas, market cap
-      const profileData = rProfile.ok ? await rProfile.json() : [];
-      const p = Array.isArray(profileData) ? profileData[0] : null;
-
-      // Key metrics TTM : P/FCF, FCF yield, PEG, EV/EBITDA
       const metricsData = rMetrics.ok ? await rMetrics.json() : [];
-      const m = Array.isArray(metricsData) ? metricsData[0] : null;
+      const ratiosData  = rRatios.ok  ? await rRatios.json()  : [];
+      const m = Array.isArray(metricsData) ? metricsData[0] : metricsData;
+      const r = Array.isArray(ratiosData)  ? ratiosData[0]  : ratiosData;
 
-      if (!p && !m) return res.status(404).json({ error: `Données introuvables pour ${symbol}` });
+      if (!m && !r) return res.status(404).json({ error: `Données introuvables pour ${symbol}` });
 
-      // FCF croissance depuis cash flow statement
+      // FCF croissance
       let fcfGrowth = null, fcf0 = null;
       if (rCF.ok) {
         const cfData = await rCF.json();
         if (Array.isArray(cfData) && cfData.length >= 2) {
-          fcf0 = cfData[0].freeCashFlow || null;
-          const fcf1 = cfData[1].freeCashFlow || null;
+          fcf0 = cfData[0]?.freeCashFlow || null;
+          const fcf1 = cfData[1]?.freeCashFlow || null;
           if (fcf0 && fcf1 && fcf1 !== 0) fcfGrowth = ((fcf0 - fcf1) / Math.abs(fcf1)) * 100;
         } else if (Array.isArray(cfData) && cfData.length === 1) {
-          fcf0 = cfData[0].freeCashFlow || null;
+          fcf0 = cfData[0]?.freeCashFlow || null;
         }
       }
 
       return res.json({
         symbol,
-        forwardPE:        p?.pe || null,
-        pegRatio:         m?.pegRatioTTM || null,
-        profitMargin:     p?.netProfitMarginTTM ? p.netProfitMarginTTM : (m?.netIncomePerShareTTM ? null : null),
-        revenueGrowth:    null,
-        earningsGrowth:   m?.epsgrowthTTM ? m.epsgrowthTTM * 100 : null,
-        profitMarginPct:  p?.netProfitMarginTTM || null,
+        forwardPE:        m?.peRatioTTM || r?.peRatioTTM || null,
+        pegRatio:         m?.pegRatioTTM || r?.pegRatioTTM || null,
+        profitMarginPct:  r?.netProfitMarginTTM ? r.netProfitMarginTTM * 100 : null,
+        earningsGrowth:   null,
         freeCashflow:     fcf0,
         fcfGrowth:        fcfGrowth,
-        pfcf:             m?.pfcfRatioTTM || null,
-        fiftyTwoWeekHigh: p?.range ? parseFloat(p.range.split('-')[1]) : null,
-        fiftyTwoWeekLow:  p?.range ? parseFloat(p.range.split('-')[0]) : null,
-        mktCap:           p?.mktCap || null,
+        pfcf:             m?.pfcfRatioTTM || r?.priceToFreeCashFlowsTTM || null,
+        fiftyTwoWeekHigh: m?.yearHighTTM || null,
+        fiftyTwoWeekLow:  m?.yearLowTTM  || null,
+        mktCap:           m?.marketCapTTM || null,
         timestamp: Date.now(),
       });
     } catch (err) {
