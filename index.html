@@ -1593,7 +1593,7 @@ function renderTx(){
       <td>${t.date||'—'}</td>
       <td style="font-weight:600">${t.name||t.ticker} <span style="font-size:10px;color:#aaa">${t.ticker}</span></td>
       <td><span class="badge ${badge}">${lab}</span></td>
-      <td><span class="badge ${isBuy?'bcto1':t.type==='dividend'?'bpea':'serr'}" style="${t.type==='sell'?'background:#fee2e2;color:#991b1b':t.type==='dividend'?'':'}">${isBuy?'Achat':t.type==='dividend'?'Dividende':'Vente'}</span></td>
+      <td><span class="badge ${t.type==='buy'?'bcto1':t.type==='dividend'?'bpea':'serr'}" style="${t.type==='sell'?'background:#fee2e2;color:#991b1b':''}">${t.type==='buy'?'Achat':t.type==='dividend'?'Dividende':'Vente'}</span></td>
       <td>${t.qty}</td>
       <td>${eur(t.price)}</td>
       <td style="font-weight:600">${eur(t.qty*t.price)}</td>
