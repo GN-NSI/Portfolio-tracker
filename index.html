@@ -527,7 +527,7 @@ let seuils=JSON.parse(localStorage.getItem('pf_seuils')||JSON.stringify(DEFAULT_
 let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
 let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
-// Liquidités saisies manuellement (persistées)
+let fxKRW=0.00068; // 1 KRW ≈ 0.00068 EUR (taux mars 2026)
 let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:404.41,CTO2:5.02,PEA:32.81}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
@@ -583,28 +583,41 @@ async function fetchFX(){
     const r=await fetch(`${API_BASE}?symbol=USDEUR%3DX`);
     if(r.ok){
       const d=await r.json();
-      // Taux USD/EUR doit être entre 0.70 et 1.00 en 2026
-      if(d.price&&d.price>0.70&&d.price<1.00){fxUSD=d.price;return;}
+      if(d.price&&d.price>0.70&&d.price<1.00){fxUSD=d.price;}
     }
   }catch(e){}
-  // Essai 2 : EURUSD inversé
+  // Essai 2 : EURUSD inversé si essai 1 échoué
+  if(fxUSD===0.92){
+    try{
+      const r=await fetch(`${API_BASE}?symbol=EURUSD%3DX`);
+      if(r.ok){
+        const d=await r.json();
+        if(d.price&&d.price>1.00&&d.price<1.50){fxUSD=1/d.price;}
+      }
+    }catch(e){}
+  }
+  // Essai 3 : Frankfurter API publique
+  if(fxUSD===0.92){
+    try{
+      const r=await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR,KRW');
+      if(r.ok){
+        const d=await r.json();
+        if(d.rates?.EUR&&d.rates.EUR>0.70) fxUSD=d.rates.EUR;
+        if(d.rates?.KRW&&d.rates.KRW>1000) fxKRW=1/d.rates.KRW; // KRW per USD → EUR per KRW
+        return;
+      }
+    }catch(e){}
+  }
+  // Frankfurter pour KRW séparément
   try{
-    const r=await fetch(`${API_BASE}?symbol=EURUSD%3DX`);
+    const r=await fetch('https://api.frankfurter.app/latest?from=KRW&to=EUR');
     if(r.ok){
       const d=await r.json();
-      if(d.price&&d.price>1.00&&d.price<1.50){fxUSD=1/d.price;return;}
+      if(d.rates?.EUR) fxKRW=d.rates.EUR;
     }
   }catch(e){}
-  // Essai 3 : GC=F (or) ignoré, on essaie un autre proxy public
-  try{
-    const r=await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
-    if(r.ok){
-      const d=await r.json();
-      if(d.rates?.EUR&&d.rates.EUR>0.70&&d.rates.EUR<1.00){fxUSD=d.rates.EUR;return;}
-    }
-  }catch(e){}
-  // Fallback réaliste mars 2026 (~0.918)
-  fxUSD=0.918;
+  // Fallback réaliste mars 2026
+  if(fxUSD===0.92) fxUSD=0.918;
 }
 
 async function loadAll(){
@@ -1396,12 +1409,17 @@ function setSortWl(col){
   renderWatchlist();
 }
 
-// Déterminer la devise d'un ticker watchlist
-function wlCurrency(w){
-  if(w.currency) return w.currency;
-  const tk=w.ticker;
-  if(tk.endsWith('.PA')||tk.endsWith('.AS')||tk.endsWith('.DE')||tk.endsWith('.KS')) return 'EUR';
-  return 'USD';
+// Devise et conversion d'un ticker watchlist → EUR
+function wlPriceToEUR(ticker,price){
+  if(!price) return null;
+  if(ticker.endsWith('.PA')||ticker.endsWith('.AS')||ticker.endsWith('.DE')||ticker.endsWith('.SW')) return price;
+  if(ticker.endsWith('.KS')||ticker.endsWith('.KQ')) return price*fxKRW; // KRW → EUR
+  return price*fxUSD; // USD → EUR par défaut
+}
+
+// Tickers compatibles Alpha Vantage (US uniquement)
+function isAVCompatible(ticker){
+  return !ticker.includes('.')||ticker.endsWith('.TO'); // pas de .PA .AS .KS etc
 }
 
 function renderWatchlist(){
@@ -1414,11 +1432,13 @@ function renderWatchlist(){
   // Construire les données pour tri
   const rows=watchlist.map((w,i)=>{
     const cp=watchlistPrices[w.ticker]||null;
-    const isEUR=wlCurrency(w)==='EUR';
-    const cpEUR=cp?(isEUR?cp:cp*fxUSD):null;
+    const cpEUR=wlPriceToEUR(w.ticker,cp);
     const target=w.target?parseFloat(w.target):null;
     const f=fundamentals[w.ticker]||{};
-    const dist=cpEUR&&target?((target-cpEUR)/cpEUR)*100:null;
+    // Distance = combien ça doit baisser pour atteindre le prix cible
+    // positif = il faut que ça baisse (pas encore au prix cible)
+    // négatif = déjà en dessous du prix cible (opportunité atteinte)
+    const dist=cpEUR&&target?((cpEUR-target)/target)*100:null;
     const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
     const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
     const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
@@ -1452,9 +1472,12 @@ function renderWatchlist(){
     let distCell='<span class="r-na">—</span>';
     let progressBar='';
     if(cpEUR&&target){
-      const reached=cpEUR>=target;
-      distCell=`<span class="${reached?'r-green':dist<0?'r-red':'r-orange'}">${reached?'✓ Atteint':fpct(dist)}</span>`;
-      const fillPct=Math.min(100,Math.max(0,(cpEUR/target)*100));
+      const reached=cpEUR<=target; // atteint quand cours <= cible
+      const pct=dist; // % au-dessus de la cible (positif = trop cher, négatif = sous la cible)
+      distCell=reached
+        ? `<span class="r-green">✓ Objectif atteint</span>`
+        : `<span class="r-orange">-${Math.abs(pct).toFixed(1)}% à attendre</span>`;
+      const fillPct=Math.min(100,Math.max(0,(target/cpEUR)*100)); // progression vers la cible
       progressBar=`<div class="wl-price-bar" style="width:90px"><div class="wl-price-fill" style="width:${fillPct}%;background:${reached?'#16a34a':'#2563eb'}"></div></div>`;
     }
     h+=`<tr>
@@ -1481,7 +1504,9 @@ function renderWatchlist(){
   el.innerHTML=h;
 }
 async function loadWatchlistFundamentals(){
-  const tickers=watchlist.map(w=>w.ticker).filter(t=>!fundamentals[t]);
+  // Alpha Vantage ne supporte que les tickers US (pas .PA .KS .AS etc)
+  const tickers=watchlist.map(w=>w.ticker).filter(t=>!fundamentals[t]&&isAVCompatible(t));
+  if(!tickers.length){renderWatchlist();return;}
   for(const tk of tickers){
     try{
       const r=await fetch(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${tk}&apikey=B082RLP22U8F1BLR`);
