@@ -230,7 +230,7 @@ input:focus,select:focus{outline:none;border-color:#999}
         <p style="font-size:12px;font-weight:600;margin-bottom:6px">Ajouter</p>
         <div class="rform">
           <select id="tx-tk"></select>
-          <select id="tx-tp"><option value="buy">Achat</option><option value="sell">Vente</option></select>
+          <select id="tx-tp"><option value="buy">Achat</option><option value="sell">Vente</option><option value="dividend">Dividende</option></select>
           <input type="number" id="tx-q" placeholder="Qté" style="width:75px" step="0.0001">
           <input type="number" id="tx-p" placeholder="Prix unitaire €" style="width:85px" step="0.01">
           <input type="date" id="tx-d">
@@ -371,8 +371,6 @@ const DEFAULT_TXS=[
   {ticker:'UBER',name:'Uber',type:'buy',qty:2.5,price:69.10,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
   {ticker:'6857.T',name:'Advantest',type:'buy',qty:0.907091,price:110.24,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
   // VENTES TR 2024
-  {ticker:'MSTR',name:'MicroStrategy',type:'sell',qty:1.0017,price:383.26,date:'2024-07-14',note:'TR — vente totale',account:'CTO2'},
-  {ticker:'BY6.F',name:'BYD',type:'sell',qty:5.00442,price:31.29,date:'2024-11-04',note:'TR — vente totale',account:'CTO2'},
   {ticker:'LYMS.DE',name:'Nasdaq 100 EUR',type:'sell',qty:3.0906,price:87.83,date:'2024-12-22',note:'TR — vente totale',account:'CTO2'},
   // ACHATS TR 2025
   {ticker:'COIN',name:'Coinbase',type:'buy',qty:1.002521,price:167.56,date:'2025-04-02',note:'TR — achat',account:'CTO2'},
@@ -384,6 +382,9 @@ const DEFAULT_TXS=[
   {ticker:'6857.T',name:'Advantest',type:'buy',qty:1.09,price:114.76,date:'2025-01-20',note:'TR — achat',account:'CTO2'},
   {ticker:'SPGI',name:'S&P Global',type:'buy',qty:0.351957,price:343.80,date:'2025-03-12',note:'TR — achat',account:'CTO2'},
   // VENTES TR 2025
+  {ticker:'MSTR',name:'MicroStrategy',type:'sell',qty:1.0017,price:383.26,date:'2025-07-14',note:'TR — vente totale',account:'CTO2'},
+  {ticker:'BY6.F',name:'BYD',type:'sell',qty:5.00442,price:31.29,date:'2025-11-04',note:'TR — vente totale',account:'CTO2'},
+  {ticker:'BY6.F',name:'BYD',type:'dividend',qty:1,price:2.08,date:'2025-08-12',note:'TR — dividende BYD',account:'CTO2'},
   {ticker:'005930.KS',name:'Samsung',type:'sell',qty:0.12489,price:2002.56,date:'2025-01-14',note:'TR — vente partielle',account:'CTO2'},
 ];
 
@@ -726,6 +727,10 @@ function computeRealizedPnL(){
           realized+=c*(tx.price-lot.price);lot.qty-=c;rem-=c;
           if(lot.qty<0.000001)lots.shift();
         }
+      }
+      else if(tx.type==='dividend'){
+        // Dividende = revenu pur, s'ajoute directement à la PV réalisée
+        realized+=tx.price*tx.qty;
       }
     });
     if(realized!==0)result[ticker]={realized};
@@ -1588,7 +1593,7 @@ function renderTx(){
       <td>${t.date||'—'}</td>
       <td style="font-weight:600">${t.name||t.ticker} <span style="font-size:10px;color:#aaa">${t.ticker}</span></td>
       <td><span class="badge ${badge}">${lab}</span></td>
-      <td><span class="badge ${isBuy?'bcto1':'serr'}" style="${!isBuy?'background:#fee2e2;color:#991b1b':''}">${isBuy?'Achat':'Vente'}</span></td>
+      <td><span class="badge ${isBuy?'bcto1':t.type==='dividend'?'bpea':'serr'}" style="${t.type==='sell'?'background:#fee2e2;color:#991b1b':t.type==='dividend'?'':'}">${isBuy?'Achat':t.type==='dividend'?'Dividende':'Vente'}</span></td>
       <td>${t.qty}</td>
       <td>${eur(t.price)}</td>
       <td style="font-weight:600">${eur(t.qty*t.price)}</td>
