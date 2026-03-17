@@ -9,10 +9,11 @@ module.exports = async (req, res) => {
   if (type === 'fundamentals') {
     const FMP_KEY = 'yrFxAuUHv6XgKGxfXol6sGWVxmEq6tBr';
     try {
-      const [rMetrics, rRatios, rCF] = await Promise.all([
+      const [rMetrics, rRatios, rCF, rEst] = await Promise.all([
         fetch(`https://financialmodelingprep.com/stable/key-metrics-ttm?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`),
         fetch(`https://financialmodelingprep.com/stable/ratios-ttm?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`),
-        fetch(`https://financialmodelingprep.com/stable/cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=2&apikey=${FMP_KEY}`)
+        fetch(`https://financialmodelingprep.com/stable/cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=2&apikey=${FMP_KEY}`),
+        fetch(`https://financialmodelingprep.com/stable/analyst-estimates?symbol=${encodeURIComponent(symbol)}&period=annual&limit=10&apikey=${FMP_KEY}`)
       ]);
 
       const metricsData = rMetrics.ok ? await rMetrics.json() : [];
@@ -22,7 +23,29 @@ module.exports = async (req, res) => {
 
       if (!m && !r) return res.status(404).json({ error: `Données introuvables pour ${symbol}` });
 
-      // FCF croissance
+      // Forward EPS : prendre l'année fiscale à au moins 9 mois dans le futur
+      let epsForward = null;
+      if (rEst.ok) {
+        const estData = await rEst.json();
+        if (Array.isArray(estData)) {
+          const today = new Date();
+          const nineMonths = new Date(today.getTime() + 9*30*24*60*60*1000);
+          const nextFY = estData
+            .filter(e => new Date(e.date) > nineMonths && e.epsAvg > 0)
+            .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+          // Fallback : prochaine année quelle que soit la distance
+          if (!nextFY) {
+            const fallback = estData
+              .filter(e => new Date(e.date) > today && e.epsAvg > 0)
+              .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+            if (fallback) epsForward = fallback.epsAvg;
+          } else {
+            epsForward = nextFY.epsAvg;
+          }
+        }
+      }
+
+      // FCF depuis cash flow statement
       let fcfGrowth = null, fcf0 = null;
       if (rCF.ok) {
         const cfData = await rCF.json();
@@ -37,17 +60,15 @@ module.exports = async (req, res) => {
 
       return res.json({
         symbol,
-        forwardPE:        r?.priceToEarningsRatioTTM || null,
-        pegRatio:         r?.priceToEarningsGrowthRatioTTM || null,
-        profitMarginPct:  r?.netProfitMarginTTM ? r.netProfitMarginTTM * 100 : null,
-        earningsGrowth:   null,
-        freeCashflow:     fcf0,
-        fcfGrowth:        fcfGrowth,
-        pfcf:             r?.priceToFreeCashFlowRatioTTM || null,
-        fiftyTwoWeekHigh: null, // non dispo en TTM, viendra du cours Yahoo
-        fiftyTwoWeekLow:  null,
-        mktCap:           m?.marketCap || null,
-        returnOnEquity:   m?.returnOnEquityTTM ? m.returnOnEquityTTM * 100 : null,
+        trailingPE:        r?.priceToEarningsRatioTTM || null,
+        epsForward:        epsForward,   // forward PE calculé côté client : prix_USD / epsForward
+        pegRatio:          r?.priceToEarningsGrowthRatioTTM || null,
+        profitMarginPct:   r?.netProfitMarginTTM ? r.netProfitMarginTTM * 100 : null,
+        freeCashflow:      fcf0,
+        fcfGrowth:         fcfGrowth,
+        pfcf:              r?.priceToFreeCashFlowRatioTTM || null,
+        mktCap:            m?.marketCap || null,
+        returnOnEquity:    m?.returnOnEquityTTM ? m.returnOnEquityTTM * 100 : null,
         freeCashFlowYield: m?.freeCashFlowYieldTTM ? m.freeCashFlowYieldTTM * 100 : null,
         timestamp: Date.now(),
       });
