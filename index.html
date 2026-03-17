@@ -1270,16 +1270,15 @@ async function loadFundamentals(){
             Symbol:tk,
             ForwardPE:    d.forwardPE!=null?d.forwardPE.toString():'None',
             PEGRatio:     d.pegRatio!=null?d.pegRatio.toString():'None',
-            ProfitMargin: d.profitMargin!=null?(d.profitMargin/100).toString():'None',
-            QuarterlyRevenueGrowthYOY: d.revenueGrowth!=null?(d.revenueGrowth/100).toString():'None',
+            ProfitMargin: d.profitMarginPct!=null?(d.profitMarginPct/100).toString():'None',
+            QuarterlyRevenueGrowthYOY: 'None',
             QuarterlyEarningsGrowthYOY: d.earningsGrowth!=null?(d.earningsGrowth/100).toString():'None',
             '52WeekHigh': d.fiftyTwoWeekHigh!=null?d.fiftyTwoWeekHigh.toString():'None',
             '52WeekLow':  d.fiftyTwoWeekLow!=null?d.fiftyTwoWeekLow.toString():'None',
-            MarketCapitalization: 'None',
+            MarketCapitalization: d.mktCap!=null?d.mktCap.toString():'None',
             _fcf:       d.freeCashflow||null,
             _fcfGrowth: d.fcfGrowth||null,
             _pfcf:      d.pfcf||null,
-            _targetPrice: d.targetMeanPrice||null,
           };
         }
       }
