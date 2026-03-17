@@ -5,90 +5,76 @@ module.exports = async (req, res) => {
   const { symbol, type } = req.query;
   if (!symbol) return res.status(400).json({ error: 'symbol requis' });
 
-  // ── MODE FUNDAMENTALS : quoteSummary Yahoo Finance ─────────────────
+  // ── MODE FUNDAMENTALS : Financial Modeling Prep ───────────────────
   if (type === 'fundamentals') {
+    const FMP_KEY = 'yrFxAuUHv6XgKGxfXol6sGWVxmEq6tBr';
     try {
-      const modules = [
-        'defaultKeyStatistics',
-        'financialData',
-        'cashflowStatementHistory',
-      ].join(',');
+      // Appel 1 : ratios (PER, PEG, marges, FCF...)
+      const [rRatios, rCF] = await Promise.all([
+        fetch(`https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(symbol)}?apikey=${FMP_KEY}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        }),
+        fetch(`https://financialmodelingprep.com/api/v3/cash-flow-statement/${encodeURIComponent(symbol)}?limit=2&apikey=${FMP_KEY}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        })
+      ]);
 
-      // Essai 1 : query1
-      let response = await fetch(
-        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}&crumb=`,
-        {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://finance.yahoo.com/',
-            'Origin': 'https://finance.yahoo.com',
-            'Cookie': 'GUC=AQABCAFm; A1=d=AQABBCy; A3=d=AQABBCy',
-          }
+      if (!rRatios.ok) return res.status(502).json({ error: `FMP ratios ${rRatios.status}` });
+
+      const ratios = await rRatios.json();
+      const r = Array.isArray(ratios) ? ratios[0] : ratios;
+      if (!r) return res.status(404).json({ error: `Ratios introuvables pour ${symbol}` });
+
+      // FCF croissance
+      let fcfGrowth = null;
+      let pfcf = null;
+      let fcf0 = null;
+      if (rCF.ok) {
+        const cfData = await rCF.json();
+        if (Array.isArray(cfData) && cfData.length >= 2) {
+          fcf0 = cfData[0].freeCashFlow || null;
+          const fcf1 = cfData[1].freeCashFlow || null;
+          if (fcf0 && fcf1 && fcf1 !== 0) fcfGrowth = ((fcf0 - fcf1) / Math.abs(fcf1)) * 100;
+        } else if (Array.isArray(cfData) && cfData.length === 1) {
+          fcf0 = cfData[0].freeCashFlow || null;
         }
-      );
-      // Essai 2 : query2 si query1 échoue
-      if (!response.ok) {
-        response = await fetch(
-          `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`,
-          {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'application/json',
-              'Referer': 'https://finance.yahoo.com/quote/' + symbol,
-            }
-          }
+      }
+
+      // P/FCF depuis ratio TTM
+      pfcf = r.priceToFreeCashFlowsRatioTTM || null;
+
+      // 52 semaines via chart endpoint
+      let w52h = null, w52l = null;
+      try {
+        const rQuote = await fetch(
+          `https://financialmodelingprep.com/api/v3/quote/${encodeURIComponent(symbol)}?apikey=${FMP_KEY}`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' } }
         );
-      }
-
-      if (!response.ok) return res.status(502).json({ error: `Yahoo quoteSummary ${response.status}` });
-
-      const data = await response.json();
-      const result = data?.quoteSummary?.result?.[0];
-      if (!result) {
-        const errMsg = data?.quoteSummary?.error?.description || 'Données introuvables';
-        return res.status(404).json({ error: errMsg, symbol });
-      }
-
-      const ks = result.defaultKeyStatistics || {};
-      const fd = result.financialData || {};
-      const cf = result.cashflowStatementHistory?.cashflowStatements || [];
-
-      const fcf0 = cf[0]
-        ? (cf[0].totalCashFromOperatingActivities?.raw || 0) - Math.abs(cf[0].capitalExpenditures?.raw || 0)
-        : (fd.freeCashflow?.raw || null);
-      const fcf1 = cf[1]
-        ? (cf[1].totalCashFromOperatingActivities?.raw || 0) - Math.abs(cf[1].capitalExpenditures?.raw || 0)
-        : null;
-      const fcfGrowth = fcf0 && fcf1 && fcf1 !== 0 ? ((fcf0 - fcf1) / Math.abs(fcf1)) * 100 : null;
-      const mktCap = ks.enterpriseValue?.raw || null;
-      const pfcf = mktCap && fcf0 && fcf0 > 0 ? mktCap / fcf0 : null;
+        if (rQuote.ok) {
+          const qData = await rQuote.json();
+          const q = Array.isArray(qData) ? qData[0] : null;
+          if (q) { w52h = q.yearHigh; w52l = q.yearLow; }
+        }
+      } catch(e) {}
 
       return res.json({
         symbol,
         // Valorisation
-        trailingPE:       ks.trailingEps?.raw ? null : null, // on utilise financialData
-        forwardPE:        ks.forwardPE?.raw || null,
-        pegRatio:         ks.pegRatio?.raw || null,
-        priceToBook:      ks.priceToBook?.raw || null,
-        // Croissance & rentabilité
-        profitMargin:     fd.profitMargins?.raw ? fd.profitMargins.raw * 100 : null,
-        revenueGrowth:    fd.revenueGrowth?.raw ? fd.revenueGrowth.raw * 100 : null,
-        earningsGrowth:   fd.earningsGrowth?.raw ? fd.earningsGrowth.raw * 100 : null,
-        returnOnEquity:   fd.returnOnEquity?.raw ? fd.returnOnEquity.raw * 100 : null,
-        // Prix
-        currentPrice:     fd.currentPrice?.raw || null,
-        targetMeanPrice:  fd.targetMeanPrice?.raw || null,
+        forwardPE:     r.priceEarningsRatioTTM || null,
+        pegRatio:      r.priceEarningsToGrowthRatioTTM || null,
+        priceToBook:   r.priceToBookRatioTTM || null,
+        // Rentabilité
+        profitMargin:  r.netProfitMarginTTM ? r.netProfitMarginTTM * 100 : null,
+        revenueGrowth: null, // pas dispo en TTM simple, nécessite income statement
+        earningsGrowth: r.epsgrowthTTM ? r.epsgrowthTTM * 100 : null,
+        returnOnEquity: r.returnOnEquityTTM ? r.returnOnEquityTTM * 100 : null,
         // FCF
-        freeCashflow:     fd.freeCashflow?.raw || fcf0 || null,
-        fcfGrowth:        fcfGrowth,
-        pfcf:             pfcf,
+        freeCashflow:  fcf0,
+        fcfGrowth:     fcfGrowth,
+        pfcf:          pfcf,
         // 52 semaines
-        fiftyTwoWeekHigh: ks.fiftyTwoWeekHigh?.raw || null,
-        fiftyTwoWeekLow:  ks.fiftyTwoWeekLow?.raw || null,
-        // Timestamp
+        fiftyTwoWeekHigh: w52h,
+        fiftyTwoWeekLow:  w52l,
         timestamp: Date.now(),
       });
     } catch (err) {
