@@ -61,7 +61,8 @@ module.exports = async (req, res) => {
       return res.json({
         symbol,
         trailingPE:        r?.priceToEarningsRatioTTM || null,
-        epsForward:        epsForward,   // forward PE calculé côté client : prix_USD / epsForward
+        epsForward:        epsForward,
+        currentPriceUSD:   m?.stockPriceTTM || null, // prix pour calcul forward PE
         pegRatio:          r?.priceToEarningsGrowthRatioTTM || null,
         profitMarginPct:   r?.netProfitMarginTTM ? r.netProfitMarginTTM * 100 : null,
         freeCashflow:      fcf0,
