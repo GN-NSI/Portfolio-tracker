@@ -1266,9 +1266,26 @@ async function loadFundamentals(){
       if(r.ok){
         const d=await r.json();
         if(d&&!d.error){
+          // Forward PE = trailingPE × (epsTrailing / epsForward)
+          // epsTrailing = prix / trailingPE → on déduit depuis trailingPE et le ratio
+          // Méthode simple et robuste : trailingPE × (1 / croissanceEPS)
+          // Ou depuis prix USD si disponible, sinon on garde null
+          const priceUSD=prices[tk]||null;
+          const fwdPE=priceUSD&&d.epsForward&&d.epsForward>0
+            ?(priceUSD/d.epsForward)
+            // Fallback : trailingPE / (1 + croissance implicite)
+            : d.trailingPE&&d.epsForward&&d.trailingPE>0
+              ? (()=>{
+                  // epsTrailing = marketCap * trailingPE / marketCap = trailingPE donne px/eps
+                  // On ne peut pas déduire epsTrailing sans le prix
+                  // → on stocke epsForward et calcule après loadAll
+                  return null;
+                })()
+              : null;
           fundamentals[tk]={
             Symbol:tk,
-            ForwardPE:    d.forwardPE!=null?d.forwardPE.toString():'None',
+            PERatio:      d.trailingPE!=null?d.trailingPE.toString():'None',
+            ForwardPE:    fwdPE!=null?fwdPE.toString():'None',
             PEGRatio:     d.pegRatio!=null?d.pegRatio.toString():'None',
             ProfitMargin: d.profitMarginPct!=null?(d.profitMarginPct/100).toString():'None',
             QuarterlyRevenueGrowthYOY: 'None',
@@ -1281,6 +1298,8 @@ async function loadFundamentals(){
             _pfcf:        d.pfcf||null,
             _fcfYield:    d.freeCashFlowYield||null,
             _roe:         d.returnOnEquity||null,
+            _epsForward:  d.epsForward||null,
+            _trailingPE:  d.trailingPE||null,
           };
         }
       }
@@ -1338,7 +1357,10 @@ function renderFondamentaux(){
     const cp=getCoursEUR(pos||{ticker:tk,account:'CTO1'});
     const cpUSD=prices[tk]||null;
     const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
-    const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
+    // Forward PE calculé en temps réel : prix USD live / EPS forward analystes
+    const epsForward=f._epsForward||null;
+    const perf=epsForward&&cpUSD&&cpUSD>0?(cpUSD/epsForward)
+      :(f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null);
     const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
     const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
     const margin=f.ProfitMargin&&f.ProfitMargin!=='None'?parseFloat(f.ProfitMargin)*100:null;
@@ -1402,7 +1424,7 @@ function renderFondamentaux(){
   h+='</tbody></table>';
   h+=`<div style="text-align:right;margin-top:10px">
     <button class="btn btn-sm" onclick="loadFundamentals()">↻ Rafraîchir</button>
-    <span style="font-size:11px;color:#aaa;margin-left:8px">~${tickers.length} appels AV</span>
+    <span style="font-size:11px;color:#aaa;margin-left:8px">Yahoo Finance + FMP (sans quota)</span>
   </div>`;
   document.getElementById('fond-tbl').innerHTML=h;
 }
