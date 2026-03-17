@@ -106,7 +106,7 @@ input:focus,select:focus{outline:none;border-color:#999}
     <button class="tab active" onclick="go('positions',this)">Positions</button>
     <button class="tab" onclick="go('performance',this)">Performance</button>
     <button class="tab" onclick="go('repartition',this)">Répartition</button>
-    <button class="tab" onclick="go('fondamentaux',this)">Fondamentaux</button>
+    <button class="tab" onclick="go('fondamentaux',this)">Ratios</button>
     <button class="tab" onclick="go('watchlist',this)">Watchlist</button>
     <button class="tab" onclick="go('historique',this)">Transactions</button>
     <button class="tab" onclick="go('gerer',this)">Gérer</button>
@@ -500,10 +500,28 @@ const DEFAULT_SEUILS={
 };
 
 let positions=[],prices={},fxUSD=0.92,txs=[],charts2={},expanded=new Set();
-let sortCol='totalMV',sortDir=-1; // tri par défaut : Montant décroissant
+let sortCol='totalMV',sortDir=-1;
+let sortFondCol='name',sortFondDir=1;
+let sortWlCol='name',sortWlDir=1;
+
+const DEFAULT_WATCHLIST=[
+  {ticker:'MC.PA',   name:'LVMH',               target:450,  note:'', currency:'EUR'},
+  {ticker:'000660.KS',name:'SK Hynix',           target:null, note:'', currency:'EUR'},
+  {ticker:'NBIS',    name:'Nebius',              target:null, note:'', currency:'USD'},
+  {ticker:'FICO',    name:'FICO',                target:null, note:'', currency:'USD'},
+  {ticker:'LITE',    name:'Lumentum Holdings',   target:null, note:'', currency:'USD'},
+  {ticker:'ORCL',    name:'Oracle',              target:null, note:'', currency:'USD'},
+  {ticker:'AI.PA',   name:'Air Liquide',         target:160,  note:'', currency:'EUR'},
+  {ticker:'GTT.PA',  name:'GTT',                 target:null, note:'', currency:'EUR'},
+  {ticker:'CRWD',    name:'CrowdStrike',         target:null, note:'', currency:'USD'},
+  {ticker:'PANW',    name:'Palo Alto Networks',  target:null, note:'', currency:'USD'},
+  {ticker:'OKLO',    name:'Oklo Inc',            target:null, note:'', currency:'USD'},
+  {ticker:'ASTS',    name:'AST SpaceMobile',     target:null, note:'', currency:'USD'},
+];
 let manualPrices=JSON.parse(localStorage.getItem('pf_manual')||'{}');
 let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
-let watchlist=JSON.parse(localStorage.getItem('pf_watchlist')||'[]');
+let watchlist=JSON.parse(localStorage.getItem('pf_watchlist')||'null');
+if(!watchlist){watchlist=JSON.parse(JSON.stringify(DEFAULT_WATCHLIST));localStorage.setItem('pf_watchlist',JSON.stringify(watchlist));}
 let watchlistPrices={};
 let seuils=JSON.parse(localStorage.getItem('pf_seuils')||JSON.stringify(DEFAULT_SEUILS));
 let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
@@ -1236,6 +1254,17 @@ async function loadFundamentals(){
   renderFondamentaux();
 }
 
+function thFond(col,label,align='right'){
+  const active=sortFondCol===col;
+  const arrow=active?(sortFondDir===1?'↑':'↓'):'↕';
+  const style=`text-align:${align};${active?'color:#1a1a1a':'color:#888'};cursor:pointer;user-select:none`;
+  return `<th onclick="setSortFond('${col}')" style="${style}">${label} <span style="font-size:9px;color:#bbb">${arrow}</span></th>`;
+}
+function setSortFond(col){
+  if(sortFondCol===col)sortFondDir*=-1;else{sortFondCol=col;sortFondDir=col==='name'?1:-1;}
+  renderFondamentaux();
+}
+
 function renderFondamentaux(){
   const tickers=[...new Set(
     positions.filter(p=>!ETF_META[p.ticker]&&p.account!=='PEA')
@@ -1254,11 +1283,9 @@ function renderFondamentaux(){
     </div>`;
     return;
   }
-  let h=`<table><thead><tr>
-    <th class="left">Titre</th><th>Cours €</th><th>PER</th><th>PER Fwd</th><th>PEG</th>
-    <th>Croiss. BPA</th><th>Marge nette</th><th>Revenus YoY</th><th>52s bas</th><th>52s haut</th><th>Position 52s</th>
-  </tr></thead><tbody>`;
-  tickers.forEach(tk=>{
+
+  // Construire les données pour pouvoir trier
+  const rows=tickers.map(tk=>{
     const pos=positions.find(p=>p.ticker===tk);
     const f=fundamentals[tk]||{};
     const cp=getCoursEUR(pos||{ticker:tk,account:'CTO1'});
@@ -1271,16 +1298,41 @@ function renderFondamentaux(){
     const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
     const w52l=f['52WeekLow']&&f['52WeekLow']!=='None'?parseFloat(f['52WeekLow']):null;
     const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
+    const pct52=w52l&&w52h&&cpUSD?Math.min(100,Math.max(0,((cpUSD-w52l)/(w52h-w52l))*100)):null;
+    return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52l,w52h,pct52,name:pos?.name||f.Name||tk};
+  });
+
+  // Tri
+  rows.sort((a,b)=>{
+    const va=a[sortFondCol],vb=b[sortFondCol];
+    if(va==null&&vb==null)return 0;
+    if(va==null)return 1;if(vb==null)return -1;
+    if(sortFondCol==='name')return sortFondDir*(va.localeCompare(vb));
+    return sortFondDir*(va-vb);
+  });
+
+  let h=`<table><thead><tr>
+    ${thFond('name','Titre','left')}
+    ${thFond('cp','Cours €')}
+    ${thFond('per','PER')}
+    ${thFond('perf','PER Fwd')}
+    ${thFond('peg','PEG')}
+    ${thFond('epsG','Croiss. BPA')}
+    ${thFond('margin','Marge nette')}
+    ${thFond('revG','Revenus YoY')}
+    <th>52s bas</th><th>52s haut</th>
+    ${thFond('pct52','Position 52s')}
+  </tr></thead><tbody>`;
+
+  rows.forEach(({tk,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52l,w52h,pct52,name})=>{
     let w52bar='<span class="r-na">—</span>';
-    if(w52l&&w52h&&cpUSD){
-      const pct52=Math.min(100,Math.max(0,((cpUSD-w52l)/(w52h-w52l))*100));
+    if(pct52!=null){
       const color=pct52>80?'#dc2626':pct52>50?'#d97706':'#16a34a';
       w52bar=`<div style="display:flex;align-items:center;gap:4px">
         <div class="w52-wrap"><div class="w52-fill" style="width:${pct52}%;background:${color}"></div></div>
         <span style="font-size:10px;color:#666">${pct52.toFixed(0)}%</span>
       </div>`;
     }
-    const name=pos?.name||f.Name||tk;
     h+=`<tr>
       <td style="font-weight:600">${name} <span style="font-size:10px;color:#aaa">${tk}</span></td>
       <td>${cp?eur(cp):'<span class="r-na">—</span>'}</td>
@@ -1333,48 +1385,96 @@ function saveSeuils(){
 }
 
 // ── WATCHLIST ──────────────────────────────────────────────────────
+function thWl(col,label,align='right'){
+  const active=sortWlCol===col;
+  const arrow=active?(sortWlDir===1?'↑':'↓'):'↕';
+  const style=`text-align:${align};${active?'color:#1a1a1a':'color:#888'};cursor:pointer;user-select:none`;
+  return `<th onclick="setSortWl('${col}')" style="${style}">${label} <span style="font-size:9px;color:#bbb">${arrow}</span></th>`;
+}
+function setSortWl(col){
+  if(sortWlCol===col)sortWlDir*=-1;else{sortWlCol=col;sortWlDir=col==='name'?1:-1;}
+  renderWatchlist();
+}
+
+// Déterminer la devise d'un ticker watchlist
+function wlCurrency(w){
+  if(w.currency) return w.currency;
+  const tk=w.ticker;
+  if(tk.endsWith('.PA')||tk.endsWith('.AS')||tk.endsWith('.DE')||tk.endsWith('.KS')) return 'EUR';
+  return 'USD';
+}
+
 function renderWatchlist(){
   const el=document.getElementById('wl-tbl');
   if(!watchlist.length){
     el.innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucun titre en watchlist.</p>';
     return;
   }
-  let h=`<table><thead><tr>
-    <th class="left">Titre</th><th>Cours actuel</th><th>Prix cible</th><th>Distance</th><th>Progression</th>
-    <th>PER</th><th>PER Fwd</th><th>PEG</th><th>Croiss. BPA</th><th>Note</th><th></th>
-  </tr></thead><tbody>`;
-  watchlist.forEach((w,i)=>{
+
+  // Construire les données pour tri
+  const rows=watchlist.map((w,i)=>{
     const cp=watchlistPrices[w.ticker]||null;
-    const cpEUR=cp?(w.currency==='USD'?cp*fxUSD:cp):null;
+    const isEUR=wlCurrency(w)==='EUR';
+    const cpEUR=cp?(isEUR?cp:cp*fxUSD):null;
     const target=w.target?parseFloat(w.target):null;
     const f=fundamentals[w.ticker]||{};
+    const dist=cpEUR&&target?((target-cpEUR)/cpEUR)*100:null;
+    const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
+    const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
+    const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
+    const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
+    return{w,i,cp,cpEUR,target,dist,per,perf,peg,epsG,name:w.name||w.ticker};
+  });
+
+  // Tri
+  rows.sort((a,b)=>{
+    const va=a[sortWlCol],vb=b[sortWlCol];
+    if(va==null&&vb==null)return 0;
+    if(va==null)return 1;if(vb==null)return -1;
+    if(sortWlCol==='name')return sortWlDir*(va.localeCompare(vb));
+    return sortWlDir*(va-vb);
+  });
+
+  let h=`<table><thead><tr>
+    ${thWl('name','Titre','left')}
+    ${thWl('cpEUR','Cours €')}
+    ${thWl('target','Prix cible')}
+    ${thWl('dist','Distance')}
+    <th>Progression</th>
+    ${thWl('per','PER')}
+    ${thWl('perf','PER Fwd')}
+    ${thWl('peg','PEG')}
+    ${thWl('epsG','Croiss. BPA')}
+    <th class="left">Note</th><th></th>
+  </tr></thead><tbody>`;
+
+  rows.forEach(({w,i,cpEUR,target,dist,per,perf,peg,epsG,name})=>{
     let distCell='<span class="r-na">—</span>';
     let progressBar='';
     if(cpEUR&&target){
-      const dist=((target-cpEUR)/cpEUR)*100;
       const reached=cpEUR>=target;
       distCell=`<span class="${reached?'r-green':dist<0?'r-red':'r-orange'}">${reached?'✓ Atteint':fpct(dist)}</span>`;
       const fillPct=Math.min(100,Math.max(0,(cpEUR/target)*100));
       progressBar=`<div class="wl-price-bar" style="width:90px"><div class="wl-price-fill" style="width:${fillPct}%;background:${reached?'#16a34a':'#2563eb'}"></div></div>`;
     }
-    const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
-    const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
-    const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
-    const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
     h+=`<tr>
-      <td style="font-weight:600">${w.name||w.ticker} <span style="font-size:10px;color:#aaa">${w.ticker}</span></td>
+      <td style="font-weight:600">${name} <span style="font-size:10px;color:#aaa">${w.ticker}</span></td>
       <td>${cpEUR?eur(cpEUR):'<span class="r-na">—</span>'}</td>
       <td>${target?eur(target):'<span class="r-na">—</span>'}</td>
-      <td>${distCell}</td><td>${progressBar||'<span class="r-na">—</span>'}</td>
-      <td>${ratioCell('per',per)}</td><td>${ratioCell('perf',perf)}</td><td>${ratioCell('peg',peg)}</td><td>${ratioCell('epsGrowth',epsG,'%')}</td>
+      <td>${distCell}</td>
+      <td>${progressBar||'<span class="r-na">—</span>'}</td>
+      <td>${ratioCell('per',per)}</td>
+      <td>${ratioCell('perf',perf)}</td>
+      <td>${ratioCell('peg',peg)}</td>
+      <td>${ratioCell('epsGrowth',epsG,'%')}</td>
       <td style="font-size:11px;color:#888;max-width:150px;white-space:normal">${w.note||'—'}</td>
-      <td><button onclick="delWatchlist(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
+      <td><button onclick="delWatchlist(${watchlist.indexOf(w)})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">×</button></td>
     </tr>`;
   });
   h+='</tbody></table>';
   const wlTickers=watchlist.map(w=>w.ticker).filter(t=>!fundamentals[t]);
   if(wlTickers.length){
-    h+=`<div style="margin-top:10px;font-size:11px;color:#aaa">
+    h+=`<div style="margin-top:10px">
       <button class="btn btn-sm" onclick="loadWatchlistFundamentals()">Charger ratios watchlist (${wlTickers.length} titres)</button>
     </div>`;
   }
