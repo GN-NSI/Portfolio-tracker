@@ -344,15 +344,15 @@ const DEFAULTS=[
   {ticker:'RDDT',name:'Reddit',qty:3,pru:139.84,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'TSM',name:'TSMC',qty:1,pru:295.64,account:'CTO1',sector:'Tech',geo:'Asie'},
   {ticker:'V',name:'Visa',qty:0.75,pru:327.4,account:'CTO1',sector:'Finance',geo:'USA'},
-  // CTO2 — Trade Republic (PRU en EUR)
+  // CTO2 — Trade Republic (PRU en EUR, mais titres US cotent en USD sur Yahoo)
   {ticker:'6857.T',name:'Advantest',qty:3.09709,pru:109.98,account:'CTO2',sector:'Tech',geo:'Asie'},
   {ticker:'005930.KS',name:'Samsung',qty:0.124891,pru:1149.27,account:'CTO2',sector:'Tech',geo:'Asie'},
-  {ticker:'GOOGL',name:'Alphabet',qty:1,pru:148.92,account:'CTO2',sector:'Tech',geo:'USA'},
-  {ticker:'TSM',name:'TSMC',qty:0.609037,pru:256.13,account:'CTO2',sector:'Tech',geo:'Asie'},
-  {ticker:'COIN',name:'Coinbase',qty:1.002521,pru:167.56,account:'CTO2',sector:'Finance',geo:'USA'},
-  {ticker:'UBER',name:'Uber',qty:2.5,pru:69.10,account:'CTO2',sector:'Consommation',geo:'USA'},
-  {ticker:'NVDA',name:'Nvidia',qty:1,pru:121.94,account:'CTO2',sector:'Tech',geo:'USA'},
-  {ticker:'SPGI',name:'S&P Global',qty:0.351957,pru:343.80,account:'CTO2',sector:'Finance',geo:'USA'},
+  {ticker:'GOOGL',name:'Alphabet',qty:1,pru:148.92,account:'CTO2',sector:'Tech',geo:'USA',priceUSD:true},
+  {ticker:'TSM',name:'TSMC',qty:0.609037,pru:256.13,account:'CTO2',sector:'Tech',geo:'Asie',priceUSD:true},
+  {ticker:'COIN',name:'Coinbase',qty:1.002521,pru:167.56,account:'CTO2',sector:'Finance',geo:'USA',priceUSD:true},
+  {ticker:'UBER',name:'Uber',qty:2.5,pru:69.10,account:'CTO2',sector:'Consommation',geo:'USA',priceUSD:true},
+  {ticker:'NVDA',name:'Nvidia',qty:1,pru:121.94,account:'CTO2',sector:'Tech',geo:'USA',priceUSD:true},
+  {ticker:'SPGI',name:'S&P Global',qty:0.351957,pru:343.80,account:'CTO2',sector:'Finance',geo:'USA',priceUSD:true},
   // PEA
   {ticker:'FR0011550185',name:'ETF S&P 500',qty:42,pru:26.76,account:'PEA',sector:'Multi',geo:'USA'},
   {ticker:'FR0013412012',name:'ETF Tech Émergents',qty:22,pru:29.92,account:'PEA',sector:'Tech',geo:'Émergents'},
@@ -652,7 +652,9 @@ function getCoursEUR(pos){
   if(manualPrices[pos.ticker]&&manualPrices[pos.ticker]>0) return manualPrices[pos.ticker];
   let p=prices[pos.ticker]||null;
   if(!p) return null;
-  return accCurrency(pos.account)==='USD'?p*fxUSD:p;
+  // Convertir si USD : CTO1 (IBKR) ou titres explicitement marqués priceUSD sur TR
+  if(accCurrency(pos.account)==='USD'||pos.priceUSD) return p*fxUSD;
+  return p;
 }
 function getPRUeur(pos){return accCurrency(pos.account)==='USD'?pos.pru*fxUSD:pos.pru;}
 function mvEUR(pos){const c=getCoursEUR(pos);return pos.qty*(c!==null?c:getPRUeur(pos));}
