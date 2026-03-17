@@ -37,16 +37,18 @@ module.exports = async (req, res) => {
 
       return res.json({
         symbol,
-        forwardPE:        m?.peRatioTTM || r?.peRatioTTM || null,
-        pegRatio:         m?.pegRatioTTM || r?.pegRatioTTM || null,
+        forwardPE:        r?.priceToEarningsRatioTTM || null,
+        pegRatio:         r?.priceToEarningsGrowthRatioTTM || null,
         profitMarginPct:  r?.netProfitMarginTTM ? r.netProfitMarginTTM * 100 : null,
         earningsGrowth:   null,
         freeCashflow:     fcf0,
         fcfGrowth:        fcfGrowth,
-        pfcf:             m?.pfcfRatioTTM || r?.priceToFreeCashFlowsTTM || null,
-        fiftyTwoWeekHigh: m?.yearHighTTM || null,
-        fiftyTwoWeekLow:  m?.yearLowTTM  || null,
-        mktCap:           m?.marketCapTTM || null,
+        pfcf:             r?.priceToFreeCashFlowRatioTTM || null,
+        fiftyTwoWeekHigh: null, // non dispo en TTM, viendra du cours Yahoo
+        fiftyTwoWeekLow:  null,
+        mktCap:           m?.marketCap || null,
+        returnOnEquity:   m?.returnOnEquityTTM ? m.returnOnEquityTTM * 100 : null,
+        freeCashFlowYield: m?.freeCashFlowYieldTTM ? m.freeCashFlowYieldTTM * 100 : null,
         timestamp: Date.now(),
       });
     } catch (err) {
