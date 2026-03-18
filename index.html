@@ -1468,6 +1468,44 @@ function renderFondamentaux(){
       <td>${athCell}</td>
     </tr>`;
   });
+
+  // ── Moyennes : pondérée par valeur de marché + simple ──────────
+  function wavg(field){
+    let num=0,den=0;
+    rows.forEach(r=>{
+      const v=r[field];if(v==null||isNaN(v))return;
+      const mv=positions.filter(p=>p.ticker===r.tk).reduce((s,p)=>s+mvEUR(p),0);
+      num+=v*mv;den+=mv;
+    });
+    return den>0?num/den:null;
+  }
+  function savg(field){
+    const vals=rows.map(r=>r[field]).filter(v=>v!=null&&!isNaN(v));
+    return vals.length>0?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  }
+  function avgCell(key,val,suffix=''){
+    if(val==null||isNaN(val))return '<span class="r-na">—</span>';
+    return `<span class="${ratioColor(key,val)}" style="font-weight:700">${val.toFixed(2)}${suffix}</span>`;
+  }
+
+  const wR={per:wavg('per'),perf:wavg('perf'),peg:wavg('peg'),epsG:wavg('epsG'),margin:wavg('margin'),revG:wavg('revG'),pfcf:wavg('pfcf'),fcfG:wavg('fcfG')};
+  const sR={per:savg('per'),perf:savg('perf'),peg:savg('peg'),epsG:savg('epsG'),margin:savg('margin'),revG:savg('revG'),pfcf:savg('pfcf'),fcfG:savg('fcfG')};
+
+  h+=`<tr style="background:#f0f4ff;border-top:2px solid #ddd">
+    <td style="font-weight:700;color:#2563eb">Moy. pondérée <span style="font-size:10px;font-weight:400;color:#888">(par valeur marché)</span></td>
+    <td>—</td>
+    <td>${avgCell('per',wR.per)}</td><td>${avgCell('perf',wR.perf)}</td><td>${avgCell('peg',wR.peg)}</td>
+    <td>${avgCell('epsGrowth',wR.epsG,'%')}</td><td>${avgCell('margin',wR.margin,'%')}</td><td>${avgCell('revGrowth',wR.revG,'%')}</td>
+    <td>${avgCell('pfcf',wR.pfcf)}</td><td>${avgCell('fcfGrowth',wR.fcfG,'%')}</td><td>—</td>
+  </tr>
+  <tr style="background:#fafafa;border-top:1px solid #eee">
+    <td style="font-weight:700;color:#666">Moy. simple <span style="font-size:10px;font-weight:400;color:#aaa">(1/N titres)</span></td>
+    <td>—</td>
+    <td>${avgCell('per',sR.per)}</td><td>${avgCell('perf',sR.perf)}</td><td>${avgCell('peg',sR.peg)}</td>
+    <td>${avgCell('epsGrowth',sR.epsG,'%')}</td><td>${avgCell('margin',sR.margin,'%')}</td><td>${avgCell('revGrowth',sR.revG,'%')}</td>
+    <td>${avgCell('pfcf',sR.pfcf)}</td><td>${avgCell('fcfGrowth',sR.fcfG,'%')}</td><td>—</td>
+  </tr>`;
+
   h+='</tbody></table>';
   h+=`<div style="text-align:right;margin-top:10px">
     <button class="btn btn-sm" onclick="loadFundamentals()">↻ Rafraîchir</button>
