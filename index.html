@@ -398,70 +398,80 @@ const DEFAULT_SNAPSHOTS=[
   {date:'2024-11-25',value:408.02,  note:'TR seul'},
   {date:'2024-12-02',value:372.85,  note:'TR seul'},
   {date:'2024-12-30',value:316.66,  note:'TR seul'},
-  // ── TR + PEA (à partir de fin mars 2025 — premier snapshot PEA dispo)
-  {date:'2025-01-20',value:386.98+0,        note:'TR (PEA ~10€ ignoré)'},
-  {date:'2025-02-03',value:324.07+0,        note:'TR (PEA ~10€ ignoré)'},
-  {date:'2025-03-03',value:246.43+0,        note:'TR (PEA ouvert mais <10€)'},
-  {date:'2025-03-24',value:268+1014.85,     note:'TR + PEA'},
-  {date:'2025-03-31',value:268+1014.85,     note:'TR + PEA'},
-  {date:'2025-04-01',value:637.34+1231.80,  note:'TR + PEA'},
-  {date:'2025-04-07',value:637.34+876.19,   note:'TR + PEA'},
-  {date:'2025-04-21',value:637.34+878.17,   note:'TR + PEA'},
-  {date:'2025-04-28',value:736.50+878.17,   note:'TR + PEA'},
-  {date:'2025-05-08',value:736.50+964.77,   note:'TR + PEA'},
-  {date:'2025-05-19',value:845.85+964.77,   note:'TR + PEA'},
-  {date:'2025-05-27',value:845.85+996.04,   note:'TR + PEA'},
-  {date:'2025-06-02',value:760.66+996.04,   note:'TR + PEA'},
-  {date:'2025-06-16',value:1122.57+1002.98, note:'TR + PEA'},
-  {date:'2025-06-26',value:1122.57+1002.98, note:'TR + PEA'},
-  {date:'2025-06-30',value:1224.70+1002.98, note:'TR + PEA'},
-  {date:'2025-07-14',value:1304.10+1042.23, note:'TR + PEA'},
-  {date:'2025-07-21',value:985.24+1042.23,  note:'TR + PEA'},
-  {date:'2025-07-25',value:985.24+1042.23,  note:'TR + PEA'},
-  {date:'2025-08-11',value:1033.36+1054.47, note:'TR + PEA'},
-  {date:'2025-08-29',value:1033.36+1058.00, note:'TR + PEA'},
-  {date:'2025-09-01',value:1019.28+1058.00, note:'TR + PEA'},
-  {date:'2025-09-15',value:1345.23+1087.01, note:'TR + PEA'},
-  {date:'2025-09-24',value:1345.23+1087.01, note:'TR + PEA'},
-  {date:'2025-09-29',value:1370.47+1087.01, note:'TR + PEA'},
-  {date:'2025-10-13',value:1515.70+1088.84, note:'TR + PEA'},
-  {date:'2025-10-17',value:1515.70+1088.84, note:'TR + PEA'},
-  {date:'2025-10-27',value:1587.57+1137.33, note:'TR + PEA'},
-  // ── TR + PEA + IBKR (à partir de fin nov 2025)
-  {date:'2025-11-03',value:1694.40+1115.15+10,      note:'TR + PEA + IBKR'},
-  {date:'2025-11-10',value:1400.81+1115.15+10,      note:'TR + PEA + IBKR'},
-  {date:'2025-11-19',value:1495.16+1115.15+10,      note:'TR + PEA + IBKR'},
-  {date:'2025-11-24',value:1495.16+1115.15+10,      note:'TR + PEA + IBKR'},
-  {date:'2025-11-28',value:1573.00+1115.15+10,      note:'TR + PEA + IBKR'},
-  {date:'2025-12-08',value:1573.00+1133.55+510,     note:'TR + PEA + IBKR'},
-  {date:'2025-12-11',value:1601.48+1133.55+510,     note:'TR + PEA + IBKR'},
-  {date:'2025-12-15',value:1601.48+1133.55+988.16,  note:'TR + PEA + IBKR'},
-  {date:'2025-12-17',value:1601.48+1103.68+988.16,  note:'TR + PEA + IBKR'},
-  {date:'2025-12-23',value:1601.48+2129.37+988.16,  note:'TR + PEA + IBKR'},
-  {date:'2025-12-30',value:1581.22+2129.37+1024.38, note:'TR + PEA + IBKR'},
-  {date:'2026-01-06',value:1711.58+2129.37+1060.21, note:'TR + PEA + IBKR'},
-  {date:'2026-01-08',value:1711.58+2129.37+1060.21, note:'TR + PEA + IBKR'},
-  {date:'2026-01-14',value:1515.82+2188.02+1067.34, note:'TR + PEA + IBKR'},
-  {date:'2026-01-16',value:1515.82+2188.02+1067.34, note:'TR + PEA + IBKR'},
-  {date:'2026-01-21',value:1559.67+2188.02+1533.08, note:'TR + PEA + IBKR'},
-  {date:'2026-01-28',value:1559.67+2180.70+1533.08, note:'TR + PEA + IBKR'},
-  {date:'2026-01-29',value:1730.93+2180.70+1568.00, note:'TR + PEA + IBKR'},
-  {date:'2026-02-05',value:1588.08+2180.70+1886.74, note:'TR + PEA + IBKR'},
-  {date:'2026-02-06',value:1588.08+2180.70+1886.74, note:'TR + PEA + IBKR'},
-  {date:'2026-02-11',value:1776.73+2221.91+2449.17, note:'TR + PEA + IBKR'},
-  {date:'2026-02-12',value:1776.73+2221.91+2449.17, note:'TR + PEA + IBKR'},
-  {date:'2026-02-16',value:1776.73+2221.91+2449.17, note:'TR + PEA + IBKR'},
-  {date:'2026-02-19',value:1817.63+2221.91+2894.83, note:'TR + PEA + IBKR'},
-  {date:'2026-02-23',value:1817.63+2270.47+2894.83, note:'TR + PEA + IBKR'},
-  {date:'2026-02-24',value:1927.22+2270.47+2894.83, note:'TR + PEA + IBKR'},
-  {date:'2026-02-26',value:1927.22+2270.47+2977.20, note:'TR + PEA + IBKR'},
-  {date:'2026-03-02',value:1800.00+2217.91+2977.20, note:'TR + PEA + IBKR'},
-  {date:'2026-03-03',value:1800.00+2217.91+3346.10, note:'TR + PEA + IBKR'},
-  {date:'2026-03-06',value:1714.57+2385.94+3346.10, note:'TR + PEA + IBKR'},
-  {date:'2026-03-09',value:1714.57+2432.51+3725.92, note:'TR + PEA + IBKR'},
-  {date:'2026-03-10',value:1714.57+2432.51+3725.92, note:'TR + PEA + IBKR'},
-  {date:'2026-03-13',value:1817.84+2418.54+3789.22, note:'TR + PEA + IBKR'},
-  {date:'2026-03-16',value:1817.84+2418.54+3789.22, note:'TR + PEA + IBKR'},
+  // ── TR + PEA
+  {date:'2025-01-20',value:386.98,        note:'TR'},
+  {date:'2025-02-03',value:324.07,        note:'TR'},
+  {date:'2025-03-03',value:246.43,        note:'TR'},
+  {date:'2025-03-24',value:268+1014.85,   note:'TR + PEA'},
+  {date:'2025-03-31',value:268+1014.85,   note:'TR + PEA'},
+  {date:'2025-04-01',value:637.34+1231.80,note:'TR + PEA — versement PEA 1000€'},
+  {date:'2025-04-07',value:613.50+876.49, note:'Correction marchés — droits de douane Trump'},
+  {date:'2025-04-09',value:545.48+863.81, note:'Point bas crise tarifaire Trump (-8%)'},
+  {date:'2025-04-15',value:649.06+917.51, note:'Rebond post-pause droits de douane'},
+  {date:'2025-04-21',value:637.34+878.17, note:'TR + PEA'},
+  {date:'2025-04-28',value:736.50+878.17, note:'TR + PEA'},
+  {date:'2025-05-08',value:740.55+964.77, note:'TR + PEA'},
+  {date:'2025-05-15',value:848.86+1009.56,note:'TR + PEA'},
+  {date:'2025-05-19',value:845.85+964.77, note:'TR + PEA'},
+  {date:'2025-05-27',value:845.85+996.04, note:'TR + PEA'},
+  {date:'2025-06-02',value:760.66+996.04, note:'TR + PEA'},
+  {date:'2025-06-16',value:1122.57+1002.98,note:'TR + PEA'},
+  {date:'2025-06-26',value:1122.57+1002.98,note:'TR + PEA'},
+  {date:'2025-06-30',value:1224.70+1002.98,note:'TR + PEA'},
+  {date:'2025-07-01',value:1234.54+1008.11,note:'TR + PEA'},
+  {date:'2025-07-10',value:1267.48+1030.11,note:'TR + PEA'},
+  {date:'2025-07-14',value:1304.10+1042.23,note:'TR + PEA — pic avant vente BYD'},
+  {date:'2025-07-17',value:960.12+1039.52, note:'Vente BYD — liquidités sorties du portefeuille'},
+  {date:'2025-07-21',value:985.24+1042.23, note:'TR + PEA'},
+  {date:'2025-07-25',value:985.24+1042.23, note:'TR + PEA'},
+  {date:'2025-08-11',value:1033.36+1054.47,note:'TR + PEA'},
+  {date:'2025-08-29',value:1033.36+1058.00,note:'TR + PEA'},
+  {date:'2025-09-01',value:1019.28+1058.00,note:'TR + PEA'},
+  {date:'2025-09-15',value:1345.23+1087.01,note:'TR + PEA'},
+  {date:'2025-09-24',value:1345.23+1087.01,note:'TR + PEA'},
+  {date:'2025-09-29',value:1370.47+1087.01,note:'TR + PEA'},
+  {date:'2025-10-13',value:1515.70+1088.84,note:'TR + PEA'},
+  {date:'2025-10-17',value:1515.70+1088.84,note:'TR + PEA'},
+  {date:'2025-10-27',value:1587.57+1137.33,note:'TR + PEA'},
+  // ── TR + PEA + IBKR
+  {date:'2025-11-03',value:1694.40+1115.15+10,    note:'TR + PEA + IBKR — pic avant correction'},
+  {date:'2025-11-04',value:1706.00+1136.19+10,    note:'Dernier point avant correction tech/IA'},
+  {date:'2025-11-06',value:1475.41+1119.48+10,    note:'Correction valorisations tech/IA — 7 séances de baisse CAC'},
+  {date:'2025-11-07',value:1411.08+1102.27+10,    note:'Poursuite correction tech/IA'},
+  {date:'2025-11-10',value:1400.81+1115.15+10,    note:'TR + PEA + IBKR'},
+  {date:'2025-11-14',value:1527.22+1116.85+10,    note:'Rebond après correction tech'},
+  {date:'2025-11-19',value:1495.16+1115.15+10,    note:'TR + PEA + IBKR'},
+  {date:'2025-11-24',value:1495.16+1115.15+10,    note:'TR + PEA + IBKR'},
+  {date:'2025-11-28',value:1573.00+1115.15+10,    note:'TR + PEA + IBKR'},
+  {date:'2025-12-08',value:1573.00+1133.55+510,   note:'TR + PEA + IBKR — versement IBKR 500€'},
+  {date:'2025-12-11',value:1601.48+1133.55+510,   note:'TR + PEA + IBKR'},
+  {date:'2025-12-15',value:1601.48+1133.55+988.16,note:'TR + PEA + IBKR'},
+  {date:'2025-12-17',value:1601.48+1103.68+988.16,note:'TR + PEA + IBKR'},
+  {date:'2025-12-23',value:1601.48+2129.37+988.16,note:'TR + PEA + IBKR — versements PEA 2×1000€'},
+  {date:'2025-12-30',value:1581.22+2129.37+1024.38,note:'TR + PEA + IBKR'},
+  {date:'2026-01-06',value:1711.58+2129.37+1060.21,note:'TR + PEA + IBKR'},
+  {date:'2026-01-08',value:1711.58+2129.37+1060.21,note:'TR + PEA + IBKR'},
+  {date:'2026-01-14',value:1515.82+2188.02+1067.34,note:'TR + PEA + IBKR'},
+  {date:'2026-01-16',value:1515.82+2188.02+1067.34,note:'TR + PEA + IBKR'},
+  {date:'2026-01-21',value:1559.67+2188.02+1533.08,note:'TR + PEA + IBKR'},
+  {date:'2026-01-28',value:1559.67+2180.70+1533.08,note:'TR + PEA + IBKR'},
+  {date:'2026-01-29',value:1730.93+2180.70+1568.00,note:'TR + PEA + IBKR — versements PEA 30€ + IBKR 400€'},
+  {date:'2026-02-05',value:1588.08+2180.70+1886.74,note:'TR + PEA + IBKR — versement IBKR 500€'},
+  {date:'2026-02-06',value:1588.08+2180.70+1886.74,note:'TR + PEA + IBKR'},
+  {date:'2026-02-11',value:1776.73+2221.91+2449.17,note:'TR + PEA + IBKR — versement IBKR 400€'},
+  {date:'2026-02-12',value:1776.73+2221.91+2449.17,note:'TR + PEA + IBKR'},
+  {date:'2026-02-16',value:1776.73+2221.91+2449.17,note:'TR + PEA + IBKR'},
+  {date:'2026-02-19',value:1817.63+2221.91+2894.83,note:'TR + PEA + IBKR'},
+  {date:'2026-02-23',value:1817.63+2270.47+2894.83,note:'TR + PEA + IBKR'},
+  {date:'2026-02-24',value:1927.22+2270.47+2894.83,note:'TR + PEA + IBKR'},
+  {date:'2026-02-26',value:1927.22+2270.47+2977.20,note:'TR + PEA + IBKR'},
+  {date:'2026-03-02',value:1800.00+2217.91+2977.20,note:'TR + PEA + IBKR'},
+  {date:'2026-03-05',value:1800.00+2217.91+3346.10,note:'TR + PEA + IBKR — après versement IBKR 400€ du 04/03'},
+  {date:'2026-03-06',value:1714.57+2385.94+3346.10,note:'TR + PEA + IBKR — versement PEA 200€'},
+  {date:'2026-03-09',value:1714.57+2432.51+3725.92,note:'TR + PEA + IBKR'},
+  {date:'2026-03-10',value:1714.57+2432.51+3725.92,note:'TR + PEA + IBKR'},
+  {date:'2026-03-13',value:1817.84+2418.54+3789.22,note:'TR + PEA + IBKR'},
+  {date:'2026-03-16',value:1817.84+2418.54+3789.22,note:'TR + PEA + IBKR'},
 ];
 
 // ── VERSEMENTS PAR DÉFAUT ────────────────────────────────────────
@@ -507,18 +517,18 @@ let sortFondCol='name',sortFondDir=1;
 let sortWlCol='name',sortWlDir=1;
 
 const DEFAULT_WATCHLIST=[
-  {ticker:'MC.PA',   name:'LVMH',               target:450,  note:'', currency:'EUR'},
-  {ticker:'000660.KS',name:'SK Hynix',           target:null, note:'', currency:'EUR'},
-  {ticker:'NBIS',    name:'Nebius',              target:null, note:'', currency:'USD'},
-  {ticker:'FICO',    name:'FICO',                target:null, note:'', currency:'USD'},
-  {ticker:'LITE',    name:'Lumentum Holdings',   target:null, note:'', currency:'USD'},
-  {ticker:'ORCL',    name:'Oracle',              target:null, note:'', currency:'USD'},
-  {ticker:'AI.PA',   name:'Air Liquide',         target:160,  note:'', currency:'EUR'},
-  {ticker:'GTT.PA',  name:'GTT',                 target:null, note:'', currency:'EUR'},
-  {ticker:'CRWD',    name:'CrowdStrike',         target:null, note:'', currency:'USD'},
-  {ticker:'PANW',    name:'Palo Alto Networks',  target:null, note:'', currency:'USD'},
-  {ticker:'OKLO',    name:'Oklo Inc',            target:null, note:'', currency:'USD'},
-  {ticker:'ASTS',    name:'AST SpaceMobile',     target:null, note:'', currency:'USD'},
+  {ticker:'MC.PA',    name:'LVMH',              target:450,  note:'', currency:'EUR'},
+  {ticker:'000660.KS',name:'SK Hynix',          target:500,  note:'', currency:'EUR'},
+  {ticker:'NBIS',     name:'Nebius',            target:75,   note:'', currency:'USD'},
+  {ticker:'FICO',     name:'FICO',              target:900,  note:'', currency:'USD'},
+  {ticker:'LITE',     name:'Lumentum Holdings', target:500,  note:'', currency:'USD'},
+  {ticker:'ORCL',     name:'Oracle',            target:120,  note:'', currency:'USD'},
+  {ticker:'AI.PA',    name:'Air Liquide',       target:160,  note:'', currency:'EUR'},
+  {ticker:'GTT.PA',   name:'GTT',               target:160,  note:'', currency:'EUR'},
+  {ticker:'CRWD',     name:'CrowdStrike',       target:300,  note:'', currency:'USD'},
+  {ticker:'PANW',     name:'Palo Alto Networks',target:120,  note:'', currency:'USD'},
+  {ticker:'OKLO',     name:'Oklo Inc',          target:null, note:'', currency:'USD'},
+  {ticker:'ASTS',     name:'AST SpaceMobile',   target:60,   note:'', currency:'USD'},
 ];
 let manualPrices=JSON.parse(localStorage.getItem('pf_manual')||'{}');
 let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
@@ -916,6 +926,27 @@ function renderPerfChartVal(){
     return versements.filter(v=>new Date(v.date)<=d).reduce((sum,v)=>sum+v.amount,0);
   });
 
+  // Détecter les baisses ≥5% entre deux snapshots consécutifs
+  const SEUIL_BAISSE=5;
+  const pointColors=snaps.map((s,i)=>{
+    if(i===0) return '#1a1a1a';
+    const prev=snaps[i-1].value;
+    const pct=((s.value-prev)/prev)*100;
+    return pct<=-SEUIL_BAISSE?'#dc2626':'#1a1a1a';
+  });
+  const pointSizes=snaps.map((s,i)=>{
+    if(i===0) return 3;
+    const prev=snaps[i-1].value;
+    const pct=((s.value-prev)/prev)*100;
+    return pct<=-SEUIL_BAISSE?7:3;
+  });
+  const pointStyles=snaps.map((s,i)=>{
+    if(i===0) return 'circle';
+    const prev=snaps[i-1].value;
+    const pct=((s.value-prev)/prev)*100;
+    return pct<=-SEUIL_BAISSE?'triangle':'circle';
+  });
+
   perfChartVal=new Chart(ctx,{
     type:'line',
     data:{
@@ -927,9 +958,10 @@ function renderPerfChartVal(){
           borderColor:'#1a1a1a',
           backgroundColor:'rgba(26,26,26,0.07)',
           borderWidth:2.5,
-          pointRadius:3,
-          pointHoverRadius:6,
-          pointBackgroundColor:'#1a1a1a',
+          pointRadius:pointSizes,
+          pointHoverRadius:8,
+          pointBackgroundColor:pointColors,
+          pointStyle:pointStyles,
           fill:true,
           tension:0.3,
           order:1
@@ -958,13 +990,30 @@ function renderPerfChartVal(){
           callbacks:{
             label:c=>{
               const v=c.parsed.y;
+              const i=c.dataIndex;
               if(c.datasetIndex===0){
-                // Afficher aussi la perf par rapport aux versements à ce point
-                const vers=versData[c.dataIndex];
+                const vers=versData[i];
                 const pct=vers>0?((v-vers)/vers*100):null;
-                return ` Valeur : ${eur(v)}${pct!=null?' ('+( pct>=0?'+':'')+pct.toFixed(1)+'%)':''}`;
+                // Baisse par rapport au point précédent
+                let baisseStr='';
+                if(i>0){
+                  const prev=valData[i-1];
+                  const diff=((v-prev)/prev)*100;
+                  if(diff<=-SEUIL_BAISSE) baisseStr=` ⚠️ ${diff.toFixed(1)}%`;
+                }
+                return ` Valeur : ${eur(v)}${pct!=null?' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)':''}${baisseStr}`;
               }
               return ` Versé : ${eur(v)}`;
+            },
+            afterLabel:c=>{
+              // Afficher la note du snapshot si elle existe
+              if(c.datasetIndex===0){
+                const snap=snaps[c.dataIndex];
+                if(snap&&snap.note&&snap.note!=='TR + PEA + IBKR'&&snap.note!=='TR + PEA'&&snap.note!=='TR seul'&&snap.note!=='TR'){
+                  return ` 📌 ${snap.note}`;
+                }
+              }
+              return null;
             }
           }
         }
