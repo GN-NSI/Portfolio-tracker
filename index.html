@@ -272,6 +272,11 @@ input:focus,select:focus{outline:none;border-color:#999}
       <div class="warn">Pour les titres sans feed automatique fiable (gettex / Trade Republic). Saisis le cours en € depuis ton app TR. Prioritaire sur Yahoo Finance.</div>
       <div id="manual-tbl"></div>
     </div>
+    <div class="card">
+      <div class="ctitle">Ratios manuels</div>
+      <div class="warn">Pour les titres non couverts par Alpha Vantage (Samsung, Advantest...). Ces valeurs sont prioritaires sur les données AV.</div>
+      <div id="manual-ratios-tbl"></div>
+    </div>
   </div>
 </div>
 
@@ -531,6 +536,13 @@ const DEFAULT_WATCHLIST=[
   {ticker:'ASTS',     name:'AST SpaceMobile',   target:60,   note:'', currency:'USD'},
 ];
 let manualPrices=JSON.parse(localStorage.getItem('pf_manual')||'{}');
+
+// Ratios manuels — prioritaires sur AV (pour Samsung, Advantest, etc.)
+const DEFAULT_MANUAL_FUND={
+  '005930.KS':{per:29.37, perf:8.48, peg:0.22, epsG:155.4, margin:13.27, revG:23.8},
+  '6857.T':   {per:67.51, perf:38.76,peg:1.11, epsG:51.7,  margin:27.93, revG:25.5},
+};
+let manualFundamentals=JSON.parse(localStorage.getItem('pf_manual_fund')||JSON.stringify(DEFAULT_MANUAL_FUND));
 let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
 let watchlist=JSON.parse(localStorage.getItem('pf_watchlist')||'null');
 if(!watchlist){watchlist=JSON.parse(JSON.stringify(DEFAULT_WATCHLIST));localStorage.setItem('pf_watchlist',JSON.stringify(watchlist));}
@@ -1401,24 +1413,31 @@ function renderFondamentaux(){
   }
 
   // Construire les données pour pouvoir trier
-  const rows=tickers.map(tk=>{
+  // Exclure Navitas Semi (données non représentatives)
+  const EXCLUDE_TICKERS=['NVTS'];
+  const BPA_EXCLUDE=['LYFT','UBER','COIN']; // BPA trop volatil/cyclique
+
+  const rows=tickers.filter(tk=>!EXCLUDE_TICKERS.includes(tk)).map(tk=>{
     const pos=positions.find(p=>p.ticker===tk);
-    const f=fundamentals[tk]||{};
+    const fAV=fundamentals[tk]||{};
+    const fMan=manualFundamentals[tk]||{};
+    // manualFundamentals prioritaire sur AV
+    const per=fMan.per!=null?fMan.per:(fAV.PERatio&&fAV.PERatio!=='None'?parseFloat(fAV.PERatio):null);
+    const perf=fMan.perf!=null?fMan.perf:(fAV.ForwardPE&&fAV.ForwardPE!=='None'?parseFloat(fAV.ForwardPE):null);
+    const peg=fMan.peg!=null?fMan.peg:(fAV.PEGRatio&&fAV.PEGRatio!=='None'?parseFloat(fAV.PEGRatio):null);
+    const epsGRaw=fMan.epsG!=null?fMan.epsG:(fAV.QuarterlyEarningsGrowthYOY&&fAV.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(fAV.QuarterlyEarningsGrowthYOY)*100:null);
+    const epsG=BPA_EXCLUDE.includes(tk)?null:epsGRaw; // exclure BPA non représentatifs
+    const margin=fMan.margin!=null?fMan.margin:(fAV.ProfitMargin&&fAV.ProfitMargin!=='None'?parseFloat(fAV.ProfitMargin)*100:null);
+    const revG=fMan.revG!=null?fMan.revG:(fAV.QuarterlyRevenueGrowthYOY&&fAV.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(fAV.QuarterlyRevenueGrowthYOY)*100:null);
+    const f=fAV; // pour les champs _fcf etc
     const cp=getCoursEUR(pos||{ticker:tk,account:'CTO1'});
     const cpUSD=prices[tk]||null;
-    const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
-    const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
-    const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
-    const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
-    const margin=f.ProfitMargin&&f.ProfitMargin!=='None'?parseFloat(f.ProfitMargin)*100:null;
-    const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
     const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
     const mktCap=f.MarketCapitalization&&f.MarketCapitalization!=='None'?parseFloat(f.MarketCapitalization):null;
     const fcf=f._fcf||null;
     const fcfPrev=f._fcfPrev||null;
     const pfcf=f._pfcf||(mktCap&&fcf&&fcf>0?mktCap/fcf:null);
     const fcfG=f._fcfGrowth||(fcf&&fcfPrev&&fcfPrev!==0?((fcf-fcfPrev)/Math.abs(fcfPrev))*100:null);
-    // ATH% : cours actuel vs 52s haut (depuis prices Yahoo)
     const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
     return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,athPct,name:pos?.name||f.Name||tk};
   });
@@ -1837,6 +1856,46 @@ function setLiquidite(key,val){
   renderMetrics();
 }
 
+function renderManualRatios(){
+  const el=document.getElementById('manual-ratios-tbl');if(!el)return;
+  const tickers=[...new Set(positions.filter(p=>!ETF_META[p.ticker]).map(p=>p.ticker))];
+  const FIELDS=[
+    {key:'per',   label:'PER'},
+    {key:'perf',  label:'PER Fwd'},
+    {key:'peg',   label:'PEG'},
+    {key:'epsG',  label:'Croiss. BPA %'},
+    {key:'margin',label:'Marge nette %'},
+    {key:'revG',  label:'Revenus YoY %'},
+  ];
+  let h=`<table><thead><tr>
+    <th class="left">Titre</th>
+    ${FIELDS.map(f=>`<th>${f.label}</th>`).join('')}
+  </tr></thead><tbody>`;
+  tickers.forEach(tk=>{
+    const pos=positions.find(p=>p.ticker===tk);
+    const name=pos?.name||tk;
+    const m=manualFundamentals[tk]||{};
+    h+=`<tr><td style="font-weight:600">${name} <span style="font-size:10px;color:#aaa">${tk}</span></td>`;
+    FIELDS.forEach(f=>{
+      const val=m[f.key]!=null?m[f.key]:'';
+      h+=`<td><input type="number" value="${val}" placeholder="—" step="0.01" style="width:70px;font-size:11px;text-align:right"
+        onchange="saveManualRatio('${tk}','${f.key}',this.value)"></td>`;
+    });
+    h+=`</tr>`;
+  });
+  h+='</tbody></table>';
+  el.innerHTML=h;
+}
+
+function saveManualRatio(ticker,field,val){
+  if(!manualFundamentals[ticker]) manualFundamentals[ticker]={};
+  const v=parseFloat(val);
+  if(!isNaN(v)) manualFundamentals[ticker][field]=v;
+  else delete manualFundamentals[ticker][field];
+  localStorage.setItem('pf_manual_fund',JSON.stringify(manualFundamentals));
+  renderFondamentaux();
+}
+
 // ── GÉRER ──────────────────────────────────────────────────────────
 function renderManage(){
   let h=`<table><thead><tr>
@@ -1941,7 +2000,7 @@ function go(name,el){
   if(name==='repartition') renderRep();
   if(name==='fondamentaux') renderFondamentaux();
   if(name==='watchlist') renderWatchlist();
-  if(name==='gerer'){renderManualPrices();renderLiquidites();}
+  if(name==='gerer'){renderManualPrices();renderLiquidites();renderManualRatios();}
   if(name==='performance') renderPerformance();
 }
 
