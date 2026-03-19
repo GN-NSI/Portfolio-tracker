@@ -81,67 +81,75 @@ module.exports = async (req, res) => {
   // ── MODE COURS : chart Yahoo Finance (défaut) ──────────────────────
   try {
     const safeSym = symbol.replace(/%5E/gi,'^').replace(/%3D/gi,'=');
-    // Pour les marchés on demande 1 an pour calculer YTD/1M/1Y
     const range = req.query.range || '5d';
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${safeSym}?interval=1d&range=${range}`;
-    const response = await fetch(url, {
+
+    // Pour la variation journalière fiable, toujours faire un appel 5d séparé
+    const urlDaily = `https://query1.finance.yahoo.com/v8/finance/chart/${safeSym}?interval=1d&range=5d`;
+    const urlHist  = range !== '5d'
+      ? `https://query1.finance.yahoo.com/v8/finance/chart/${safeSym}?interval=1d&range=${range}`
+      : null;
+
+    const fetchOpts = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json'
       }
-    });
+    };
 
-    if (!response.ok) return res.status(502).json({ error: 'Yahoo Finance indisponible' });
+    const [rDaily, rHist] = await Promise.all([
+      fetch(urlDaily, fetchOpts),
+      urlHist ? fetch(urlHist, fetchOpts) : Promise.resolve(null)
+    ]);
 
-    const data = await response.json();
-    const result = data?.chart?.result?.[0];
-    const meta = result?.meta;
-    const price = meta?.regularMarketPrice || meta?.previousClose;
-    const prevClose = meta?.chartPreviousClose || meta?.previousClose || null;
+    if (!rDaily.ok) return res.status(502).json({ error: 'Yahoo Finance indisponible' });
+
+    const dataDaily = await rDaily.json();
+    const metaD = dataDaily?.chart?.result?.[0]?.meta;
+    const price = metaD?.regularMarketPrice || metaD?.previousClose;
+    if (!price) return res.status(404).json({ error: `Cours introuvable pour ${symbol}` });
+
+    // Variation journalière depuis l'appel 5d (fiable)
+    const prevClose = metaD?.chartPreviousClose || metaD?.previousClose || null;
     const changeAbs = prevClose ? price - prevClose : null;
     const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : null;
 
-    if (!price) return res.status(404).json({ error: `Cours introuvable pour ${symbol}` });
-
-    // Calcul variations multi-périodes depuis l'historique
+    // Variations multi-périodes depuis l'appel 1y
     let change1M = null, changeYTD = null, change1Y = null;
-    if (range === '1y' && result?.timestamp && result?.indicators?.quote?.[0]?.close) {
-      const timestamps = result.timestamp;
-      const closes = result.indicators.quote[0].close;
-      const now = Date.now() / 1000;
-      const oneMonth = now - 30 * 24 * 3600;
-      const oneYear = now - 365 * 24 * 3600;
-      const ytdStart = new Date(new Date().getFullYear(), 0, 1).getTime() / 1000;
+    if (rHist) {
+      const dataHist = await rHist.json();
+      const result = dataHist?.chart?.result?.[0];
+      if (result?.timestamp && result?.indicators?.quote?.[0]?.close) {
+        const timestamps = result.timestamp;
+        const closes = result.indicators.quote[0].close;
+        const now = Date.now() / 1000;
+        const oneMonth = now - 30 * 24 * 3600;
+        const oneYear = now - 365 * 24 * 3600;
+        const ytdStart = new Date(new Date().getFullYear(), 0, 1).getTime() / 1000;
 
-      const findClose = (targetTs) => {
-        let best = null, bestDiff = Infinity;
-        timestamps.forEach((ts, i) => {
-          const diff = Math.abs(ts - targetTs);
-          if (diff < bestDiff && closes[i] != null) { best = closes[i]; bestDiff = diff; }
-        });
-        return best;
-      };
+        const findClose = (targetTs) => {
+          let best = null, bestDiff = Infinity;
+          timestamps.forEach((ts, i) => {
+            const diff = Math.abs(ts - targetTs);
+            if (diff < bestDiff && closes[i] != null) { best = closes[i]; bestDiff = diff; }
+          });
+          return best;
+        };
 
-      const c1M = findClose(oneMonth);
-      const cYTD = findClose(ytdStart);
-      const c1Y = findClose(oneYear);
-      if (c1M) change1M = ((price - c1M) / c1M) * 100;
-      if (cYTD) changeYTD = ((price - cYTD) / cYTD) * 100;
-      if (c1Y) change1Y = ((price - c1Y) / c1Y) * 100;
+        const c1M  = findClose(oneMonth);
+        const cYTD = findClose(ytdStart);
+        const c1Y  = findClose(oneYear);
+        if (c1M)  change1M  = ((price - c1M)  / c1M)  * 100;
+        if (cYTD) changeYTD = ((price - cYTD) / cYTD) * 100;
+        if (c1Y)  change1Y  = ((price - c1Y)  / c1Y)  * 100;
+      }
     }
 
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
     return res.json({
-      symbol,
-      price,
-      prevClose,
-      changeAbs,
-      changePct,
-      change1M,
-      changeYTD,
-      change1Y,
-      currency: meta?.currency || 'USD',
-      exchange: meta?.exchangeName || '',
+      symbol, price, prevClose, changeAbs, changePct,
+      change1M, changeYTD, change1Y,
+      currency: metaD?.currency || 'USD',
+      exchange: metaD?.exchangeName || '',
       timestamp: Date.now()
     });
   } catch (err) {
