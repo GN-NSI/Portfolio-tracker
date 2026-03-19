@@ -80,7 +80,9 @@ module.exports = async (req, res) => {
 
   // ── MODE COURS : chart Yahoo Finance (défaut) ──────────────────────
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+    // Yahoo Finance n'accepte pas l'encodage de ^ et = pour les indices/futures
+    const safeSym = symbol.replace(/%5E/gi,'^').replace(/%3D/gi,'=');
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${safeSym}?interval=1d&range=5d`;
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
