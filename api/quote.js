@@ -80,7 +80,7 @@ module.exports = async (req, res) => {
 
   // ── MODE COURS : chart Yahoo Finance (défaut) ──────────────────────
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -93,6 +93,9 @@ module.exports = async (req, res) => {
     const data = await response.json();
     const meta = data?.chart?.result?.[0]?.meta;
     const price = meta?.regularMarketPrice || meta?.previousClose;
+    const prevClose = meta?.chartPreviousClose || meta?.previousClose || null;
+    const changeAbs = prevClose ? price - prevClose : null;
+    const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : null;
 
     if (!price) return res.status(404).json({ error: `Cours introuvable pour ${symbol}` });
 
@@ -100,6 +103,9 @@ module.exports = async (req, res) => {
     return res.json({
       symbol,
       price,
+      prevClose,
+      changeAbs,
+      changePct,
       currency: meta?.currency || 'USD',
       exchange: meta?.exchangeName || '',
       timestamp: Date.now()
