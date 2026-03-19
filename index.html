@@ -932,7 +932,6 @@ function renderPerfPvTable(){
       <td style="color:${real===0?'#aaa':real>0?'#16a34a':'#dc2626'};font-weight:${real!==0?600:400}">${real!==0?eur(real):'—'}</td>
     </tr>`;
   });
-  const gt=totL+totR;
   h+=`<tr class="pv-total-row"><td>TOTAL</td><td>—</td>
     <td class="${totR>=0?'pos':'neg'}">${eur(totR)}</td>
   </tr></tbody></table>`;
@@ -1342,7 +1341,7 @@ function toggleRow(gi,ticker){
 const AV_KEY='15NGI3OVXJDJP05R';
 const FMP_KEY='yrFxAuUHv6XgKGxfXol6sGWVxmEq6tBr';
 
-async function loadFundamentals(){
+async function loadFundamentals(includeWL=false){
   const el=document.getElementById('fond-status');
   el.style.display='inline-block';
   el.className='status sload';
@@ -1352,7 +1351,9 @@ async function loadFundamentals(){
     positions.filter(p=>!ETF_META[p.ticker]&&p.account!=='PEA')
     .map(p=>p.ticker)
   )];
-  const tickersWL=watchlist.map(w=>w.ticker).filter(tk=>isAVCompatible(tk)&&!tickersPF.includes(tk));
+  const tickersWL=includeWL
+    ?watchlist.map(w=>w.ticker).filter(tk=>isAVCompatible(tk)&&!tickersPF.includes(tk))
+    :[];
   const tickers=[...tickersPF,...tickersWL];
 
   let done=0;
@@ -1438,8 +1439,9 @@ function renderFondamentaux(){
   if(!hasFund){
     document.getElementById('fond-tbl').innerHTML=`<div style="text-align:center;padding:2rem">
       <p style="color:#666;margin-bottom:12px">Les ratios ne sont pas encore chargés.</p>
-      <button class="btn btn-primary" onclick="loadFundamentals()">Charger les ratios</button>
-      <p style="font-size:11px;color:#aaa;margin-top:8px">Utilise ~${tickers.length} appels Alpha Vantage</p>
+      <button class="btn btn-primary" onclick="loadFundamentals(false)">Charger les ratios (portefeuille)</button>
+      <button class="btn btn-sm" onclick="loadFundamentals(true)" style="margin-left:8px;margin-top:8px">+ Watchlist (~21 appels AV)</button>
+      <p style="font-size:11px;color:#aaa;margin-top:8px">Limite AV : 25 appels/jour</p>
     </div>`;
     return;
   }
@@ -1638,7 +1640,8 @@ function renderFondamentaux(){
   }
 
   h+=`<div style="text-align:right;margin-top:10px">
-    <button class="btn btn-sm" onclick="loadFundamentals()">↻ Rafraîchir</button>
+    <button class="btn btn-sm" onclick="loadFundamentals(false)">↻ Portefeuille (~13 appels AV)</button>
+    <button class="btn btn-sm" onclick="loadFundamentals(true)" style="margin-left:8px">↻ + Watchlist (~21 appels AV)</button>
     <span style="font-size:11px;color:#aaa;margin-left:8px">AV + FMP</span>
   </div>`;
   document.getElementById('fond-tbl').innerHTML=h;
