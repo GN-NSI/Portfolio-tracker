@@ -1454,6 +1454,7 @@ function renderFondamentaux(){
   // Exclure Navitas Semi (données non représentatives)
   const EXCLUDE_TICKERS=[];
   const BPA_EXCLUDE=['LYFT','UBER','COIN','NVTS']; // BPA trop volatil/cyclique/non représentatif
+  const PEG_EXCLUDE=['UBER','LYFT']; // PEG non fiable (croissance passée trop volatile)
   const ALL_NULL=['NVTS']; // Titres affichés mais toutes colonnes ratios = null
 
   const rows=tickers.map(tk=>{
@@ -1464,9 +1465,10 @@ function renderFondamentaux(){
     // manualFundamentals prioritaire sur AV, tout null si ALL_NULL
     const per=isAllNull?null:(fMan.per!=null?fMan.per:(fAV.PERatio&&fAV.PERatio!=='None'?parseFloat(fAV.PERatio):null));
     const perf=isAllNull?null:(fMan.perf!=null?fMan.perf:(fAV.ForwardPE&&fAV.ForwardPE!=='None'?parseFloat(fAV.ForwardPE):null));
-    const peg=isAllNull?null:(fMan.peg!=null?fMan.peg:(fAV.PEGRatio&&fAV.PEGRatio!=='None'?parseFloat(fAV.PEGRatio):null));
     const epsGRaw=isAllNull?null:(fMan.epsG!=null?fMan.epsG:(fAV.QuarterlyEarningsGrowthYOY&&fAV.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(fAV.QuarterlyEarningsGrowthYOY)*100:null));
     const epsG=(BPA_EXCLUDE.includes(tk)||isAllNull)?null:epsGRaw;
+    const pegRaw=isAllNull?null:(fMan.peg!=null?fMan.peg:(fAV.PEGRatio&&fAV.PEGRatio!=='None'?parseFloat(fAV.PEGRatio):null));
+    const peg=(PEG_EXCLUDE.includes(tk)||isAllNull)?null:pegRaw;
     const margin=isAllNull?null:(fMan.margin!=null?fMan.margin:(fAV.ProfitMargin&&fAV.ProfitMargin!=='None'?parseFloat(fAV.ProfitMargin)*100:null));
     const revG=isAllNull?null:(fMan.revG!=null?fMan.revG:(fAV.QuarterlyRevenueGrowthYOY&&fAV.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(fAV.QuarterlyRevenueGrowthYOY)*100:null));
     const f=fAV; // pour les champs _fcf etc
