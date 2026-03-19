@@ -920,23 +920,21 @@ function renderPerfPvTable(){
   const groups=consolidate().sort((a,b)=>b.totalMV-a.totalMV);
   let h=`<table><thead><tr>
     <th class="left">Titre</th><th>Montant</th>
-    <th>PV réalisée €</th><th>PV totale €</th>
+    <th>PV réalisée €</th>
   </tr></thead><tbody>`;
-  let totL=0,totR=0;
+  let totR=0;
   groups.forEach(g=>{
-    const lat=g.pnl,real=realized[g.ticker]?.realized||0,tot=lat+real;
-    totL+=lat;totR+=real;
+    const real=realized[g.ticker]?.realized||0;
+    totR+=real;
     h+=`<tr>
       <td style="font-weight:600">${g.name} <span style="font-size:10px;color:#aaa">${g.ticker}</span></td>
       <td>${eur(g.totalMV)}</td>
       <td style="color:${real===0?'#aaa':real>0?'#16a34a':'#dc2626'};font-weight:${real!==0?600:400}">${real!==0?eur(real):'—'}</td>
-      <td class="${tot>=0?'pos':'neg'}" style="font-weight:600">${eur(tot)}</td>
     </tr>`;
   });
   const gt=totL+totR;
   h+=`<tr class="pv-total-row"><td>TOTAL</td><td>—</td>
     <td class="${totR>=0?'pos':'neg'}">${eur(totR)}</td>
-    <td class="${gt>=0?'pos':'neg'}">${eur(gt)}</td>
   </tr></tbody></table>`;
   document.getElementById('perf-pv-tbl').innerHTML=h;
 }
