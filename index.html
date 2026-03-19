@@ -54,6 +54,7 @@ tr:last-child td{border-bottom:none}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem}
 .four-col{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem}
+.five-col{display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin-bottom:1rem}
 .legend{font-size:12px}
 .li{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
@@ -110,6 +111,7 @@ input:focus,select:focus{outline:none;border-color:#999}
     <button class="tab" onclick="go('watchlist',this)">Watchlist</button>
     <button class="tab" onclick="go('historique',this)">Transactions</button>
     <button class="tab" onclick="go('gerer',this)">Gérer</button>
+    <button class="tab" onclick="go('marches',this)">Marchés</button>
   </div>
 
   <!-- POSITIONS -->
@@ -125,7 +127,7 @@ input:focus,select:focus{outline:none;border-color:#999}
   <!-- PERFORMANCE -->
   <div id="pane-performance" class="pane">
     <!-- Cartes perf -->
-    <div class="four-col" id="perf-cards"></div>
+    <div class="five-col" id="perf-cards"></div>
 
     <!-- PV réalisée + latente par titre -->
     <div class="card">
@@ -280,7 +282,15 @@ input:focus,select:focus{outline:none;border-color:#999}
   </div>
 </div>
 
-<script>
+<div id="pane-marches" class="pane">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="ctitle" style="margin:0">Marchés — Vue globale</div>
+      <button class="btn btn-sm" onclick="loadMarkets()">↻ Actualiser</button>
+    </div>
+    <div id="markets-tbl"><p style="color:#aaa;font-size:12px">Cliquez sur Actualiser pour charger les données.</p></div>
+  </div>
+</div>
 const API_BASE='/api/quote';
 
 const ETF_META={
@@ -516,7 +526,7 @@ const DEFAULT_SEUILS={
   fcfGrowth:{label:'Croissance FCF (%)', g:15, r:0,  dir:'low'},
 };
 
-let positions=[],prices={},fxUSD=0.92,txs=[],charts2={},expanded=new Set();
+let positions=[],prices={},changes={},fxUSD=0.92,txs=[],charts2={},expanded=new Set();
 let sortCol='totalMV',sortDir=-1;
 let sortFondCol='name',sortFondDir=1;
 let sortWlCol='name',sortWlDir=1;
@@ -589,7 +599,7 @@ function save(){
 
 // ── FETCH ──────────────────────────────────────────────────────────
 async function fetchQuote(ticker){
-  if(manualPrices[ticker]&&manualPrices[ticker]>0) return manualPrices[ticker];
+  if(manualPrices[ticker]&&manualPrices[ticker]>0) return {price:manualPrices[ticker],changePct:null};
   // Ticker explicitement null → cours manuel uniquement
   if(ticker in YH_TICKER && YH_TICKER[ticker]===null) return null;
   // ETF → yhTicker mappé, sinon ticker Yahoo direct
@@ -598,7 +608,8 @@ async function fetchQuote(ticker){
     const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(yh)}`);
     if(!r.ok) return null;
     const d=await r.json();
-    return d.price||null;
+    if(!d.price) return null;
+    return {price:d.price, changePct:d.changePct||null, changeAbs:d.changeAbs||null, prevClose:d.prevClose||null};
   }catch(e){return null;}
 }
 async function fetchFX(){
@@ -653,15 +664,21 @@ async function loadAll(){
   const unique=[...new Map(positions.map(p=>[p.ticker,p])).values()];
   let done=0;
   await Promise.all(unique.map(async pos=>{
-    const p=await fetchQuote(pos.ticker);
-    if(p&&p>0) prices[pos.ticker]=p;
+    const q=await fetchQuote(pos.ticker);
+    if(q&&q.price>0){
+      prices[pos.ticker]=q.price;
+      if(q.changePct!=null) changes[pos.ticker]=q.changePct;
+    }
     done++;
     document.getElementById('pfill').style.width=Math.round((done/unique.length)*100)+'%';
     renderMetrics();renderPositions();
   }));
   await Promise.all(watchlist.map(async w=>{
-    const p=await fetchQuote(w.ticker);
-    if(p&&p>0) watchlistPrices[w.ticker]=p;
+    const q=await fetchQuote(w.ticker);
+    if(q&&q.price>0){
+      watchlistPrices[w.ticker]=q.price;
+      if(q.changePct!=null) changes[w.ticker]=q.changePct;
+    }
   }));
   document.getElementById('pprog').style.display='none';
   const n=Object.keys(prices).length,now=new Date().toLocaleTimeString('fr-FR');
@@ -859,11 +876,24 @@ function renderPerfCards(){
     </div>`;
   }
 
+  // Variation journalière globale du portefeuille
+  const dailyPnl=positions.reduce((s,p)=>{
+    const chg=changes[p.ticker];
+    if(chg==null) return s;
+    return s+mvEUR(p)*(chg/100);
+  },0);
+  const dailyPct=cur>0&&Object.keys(changes).length>0?(dailyPnl/cur)*100:null;
+
   document.getElementById('perf-cards').innerHTML=
     card('All Time',atPerf,`${eur(tv)} versés → ${eur(cur)}`)+
     card('YTD',ytd,'Depuis le 1er janvier')+
     card('1 mois',m1,'Glissant 30 jours')+
-    card('1 semaine',w1,'Glissant 7 jours');
+    card('1 semaine',w1,'Glissant 7 jours')+
+    `<div class="perf-card">
+      <div class="perf-label">Aujourd'hui</div>
+      <div class="perf-val" style="color:${dailyPct==null?'#aaa':dailyPct>=0?'#16a34a':'#dc2626'}">${dailyPct!=null?(dailyPct>=0?'+':'')+dailyPct.toFixed(2)+'%':'—'}</div>
+      <div class="perf-sub">${dailyPnl!=null&&dailyPct!=null?(dailyPnl>=0?'+':'')+eur(Math.abs(dailyPnl))+' vs J-1':'En attente de cours'}</div>
+    </div>`;
 
   let pvGrid=document.getElementById('perf-pv-cards');
   if(!pvGrid){
@@ -1216,8 +1246,8 @@ function renderPositions(){
   const groups=sortGroups(consolidate());
   const tot=groups.reduce((s,g)=>s+g.totalMV,0);
   let h=`<table><colgroup>
-    <col style="width:16%"><col style="width:7%"><col style="width:10%"><col style="width:10%">
-    <col style="width:10%"><col style="width:10%"><col style="width:8%"><col style="width:16%"><col style="width:13%">
+    <col style="width:15%"><col style="width:6%"><col style="width:9%"><col style="width:9%">
+    <col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:14%"><col style="width:13%">
   </colgroup><thead><tr>
     ${thSortLeft('name','Titre')}
     ${thSort('totalQty','Qté')}
@@ -1226,6 +1256,7 @@ function renderPositions(){
     ${thSort('totalMV','Montant')}
     ${thSort('pnl','PV/MV €')}
     ${thSort('pnlPct','PV%')}
+    <th>Var. J</th>
     <th>Poids direct / réel ⓘ</th>
     <th>Comptes</th>
   </tr></thead><tbody>`;
@@ -1254,6 +1285,10 @@ function renderPositions(){
       </div>
       <span style="font-size:10px;color:#999">${wDirect.toFixed(1)}%${hasETFExpo?`<span style="color:#2563eb"> +${(wReal-wDirect).toFixed(1)}%</span>`:''}</span>
     </div>`;
+    const chgPct=changes[g.ticker]!=null?changes[g.ticker]:null;
+    const chgCell=chgPct!=null
+      ?`<span class="${chgPct>=0?'pos':'neg'}" style="font-weight:600">${chgPct>=0?'+':''}${chgPct.toFixed(2)}%</span>`
+      :'<span class="r-na">—</span>';
     h+=`<tr class="main-row" onclick="toggleRow(${gi},'${g.ticker}')">
       <td style="font-weight:600">${arrow}${g.name||g.ticker}</td>
       <td>${g.totalQty<1?g.totalQty.toFixed(3):g.totalQty%1===0?g.totalQty:g.totalQty.toFixed(3)}</td>
@@ -1261,6 +1296,7 @@ function renderPositions(){
       <td style="font-weight:600">${eur(g.totalMV)}</td>
       <td class="${cl}" style="font-weight:600">${eur(g.pnl)}</td>
       <td class="${cl}">${fpct(g.pnlPct)}</td>
+      <td>${chgCell}</td>
       <td>${poidsCell}</td>
       <td>${badges}</td>
     </tr>`;
@@ -1414,21 +1450,23 @@ function renderFondamentaux(){
 
   // Construire les données pour pouvoir trier
   // Exclure Navitas Semi (données non représentatives)
-  const EXCLUDE_TICKERS=['NVTS'];
-  const BPA_EXCLUDE=['LYFT','UBER','COIN']; // BPA trop volatil/cyclique
+  const EXCLUDE_TICKERS=[];
+  const BPA_EXCLUDE=['LYFT','UBER','COIN','NVTS']; // BPA trop volatil/cyclique/non représentatif
+  const ALL_NULL=['NVTS']; // Titres affichés mais toutes colonnes ratios = null
 
-  const rows=tickers.filter(tk=>!EXCLUDE_TICKERS.includes(tk)).map(tk=>{
+  const rows=tickers.map(tk=>{
     const pos=positions.find(p=>p.ticker===tk);
     const fAV=fundamentals[tk]||{};
     const fMan=manualFundamentals[tk]||{};
-    // manualFundamentals prioritaire sur AV
-    const per=fMan.per!=null?fMan.per:(fAV.PERatio&&fAV.PERatio!=='None'?parseFloat(fAV.PERatio):null);
-    const perf=fMan.perf!=null?fMan.perf:(fAV.ForwardPE&&fAV.ForwardPE!=='None'?parseFloat(fAV.ForwardPE):null);
-    const peg=fMan.peg!=null?fMan.peg:(fAV.PEGRatio&&fAV.PEGRatio!=='None'?parseFloat(fAV.PEGRatio):null);
-    const epsGRaw=fMan.epsG!=null?fMan.epsG:(fAV.QuarterlyEarningsGrowthYOY&&fAV.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(fAV.QuarterlyEarningsGrowthYOY)*100:null);
-    const epsG=BPA_EXCLUDE.includes(tk)?null:epsGRaw; // exclure BPA non représentatifs
-    const margin=fMan.margin!=null?fMan.margin:(fAV.ProfitMargin&&fAV.ProfitMargin!=='None'?parseFloat(fAV.ProfitMargin)*100:null);
-    const revG=fMan.revG!=null?fMan.revG:(fAV.QuarterlyRevenueGrowthYOY&&fAV.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(fAV.QuarterlyRevenueGrowthYOY)*100:null);
+    const isAllNull=ALL_NULL.includes(tk);
+    // manualFundamentals prioritaire sur AV, tout null si ALL_NULL
+    const per=isAllNull?null:(fMan.per!=null?fMan.per:(fAV.PERatio&&fAV.PERatio!=='None'?parseFloat(fAV.PERatio):null));
+    const perf=isAllNull?null:(fMan.perf!=null?fMan.perf:(fAV.ForwardPE&&fAV.ForwardPE!=='None'?parseFloat(fAV.ForwardPE):null));
+    const peg=isAllNull?null:(fMan.peg!=null?fMan.peg:(fAV.PEGRatio&&fAV.PEGRatio!=='None'?parseFloat(fAV.PEGRatio):null));
+    const epsGRaw=isAllNull?null:(fMan.epsG!=null?fMan.epsG:(fAV.QuarterlyEarningsGrowthYOY&&fAV.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(fAV.QuarterlyEarningsGrowthYOY)*100:null));
+    const epsG=(BPA_EXCLUDE.includes(tk)||isAllNull)?null:epsGRaw;
+    const margin=isAllNull?null:(fMan.margin!=null?fMan.margin:(fAV.ProfitMargin&&fAV.ProfitMargin!=='None'?parseFloat(fAV.ProfitMargin)*100:null));
+    const revG=isAllNull?null:(fMan.revG!=null?fMan.revG:(fAV.QuarterlyRevenueGrowthYOY&&fAV.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(fAV.QuarterlyRevenueGrowthYOY)*100:null));
     const f=fAV; // pour les champs _fcf etc
     const cp=getCoursEUR(pos||{ticker:tk,account:'CTO1'});
     const cpUSD=prices[tk]||null;
@@ -1451,7 +1489,8 @@ function renderFondamentaux(){
     return sortFondDir*(va-vb);
   });
 
-  let h=`<table><thead><tr>
+  let h=`<div style="margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#aaa">Mon Portefeuille</div>
+  <table><thead><tr>
     ${thFond('name','Titre','left')}
     ${thFond('cp','Cours €')}
     ${thFond('per','PER')}
@@ -1491,7 +1530,7 @@ function renderFondamentaux(){
   // ── Moyennes : pondérée par valeur de marché + simple ──────────
   function wavg(field){
     let num=0,den=0;
-    rows.forEach(r=>{
+    rows.filter(r=>r.tk!=='NVTS').forEach(r=>{
       const v=r[field];if(v==null||isNaN(v))return;
       const mv=positions.filter(p=>p.ticker===r.tk).reduce((s,p)=>s+mvEUR(p),0);
       num+=v*mv;den+=mv;
@@ -1499,8 +1538,14 @@ function renderFondamentaux(){
     return den>0?num/den:null;
   }
   function savg(field){
-    const vals=rows.map(r=>r[field]).filter(v=>v!=null&&!isNaN(v));
+    const vals=rows.filter(r=>r.tk!=='NVTS').map(r=>r[field]).filter(v=>v!=null&&!isNaN(v));
     return vals.length>0?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  }
+  function median(field){
+    const vals=rows.filter(r=>r.tk!=='NVTS').map(r=>r[field]).filter(v=>v!=null&&!isNaN(v)).sort((a,b)=>a-b);
+    if(!vals.length) return null;
+    const m=Math.floor(vals.length/2);
+    return vals.length%2?vals[m]:(vals[m-1]+vals[m])/2;
   }
   function avgCell(key,val,suffix=''){
     if(val==null||isNaN(val))return '<span class="r-na">—</span>';
@@ -1509,6 +1554,7 @@ function renderFondamentaux(){
 
   const wR={per:wavg('per'),perf:wavg('perf'),peg:wavg('peg'),epsG:wavg('epsG'),margin:wavg('margin'),revG:wavg('revG'),pfcf:wavg('pfcf'),fcfG:wavg('fcfG')};
   const sR={per:savg('per'),perf:savg('perf'),peg:savg('peg'),epsG:savg('epsG'),margin:savg('margin'),revG:savg('revG'),pfcf:savg('pfcf'),fcfG:savg('fcfG')};
+  const mR={per:median('per'),perf:median('perf'),peg:median('peg'),epsG:median('epsG'),margin:median('margin'),revG:median('revG'),pfcf:median('pfcf'),fcfG:median('fcfG')};
 
   h+=`<tr style="background:#f0f4ff;border-top:2px solid #ddd">
     <td style="font-weight:700;color:#2563eb">Moy. pondérée <span style="font-size:10px;font-weight:400;color:#888">(par valeur marché)</span></td>
@@ -1523,12 +1569,76 @@ function renderFondamentaux(){
     <td>${avgCell('per',sR.per)}</td><td>${avgCell('perf',sR.perf)}</td><td>${avgCell('peg',sR.peg)}</td>
     <td>${avgCell('epsGrowth',sR.epsG,'%')}</td><td>${avgCell('margin',sR.margin,'%')}</td><td>${avgCell('revGrowth',sR.revG,'%')}</td>
     <td>${avgCell('pfcf',sR.pfcf)}</td><td>${avgCell('fcfGrowth',sR.fcfG,'%')}</td><td>—</td>
+  </tr>
+  <tr style="background:#fff8f0;border-top:1px solid #eee">
+    <td style="font-weight:700;color:#d97706">Médiane <span style="font-size:10px;font-weight:400;color:#aaa">(valeur centrale)</span></td>
+    <td>—</td>
+    <td>${avgCell('per',mR.per)}</td><td>${avgCell('perf',mR.perf)}</td><td>${avgCell('peg',mR.peg)}</td>
+    <td>${avgCell('epsGrowth',mR.epsG,'%')}</td><td>${avgCell('margin',mR.margin,'%')}</td><td>${avgCell('revGrowth',mR.revG,'%')}</td>
+    <td>${avgCell('pfcf',mR.pfcf)}</td><td>${avgCell('fcfGrowth',mR.fcfG,'%')}</td><td>—</td>
   </tr>`;
 
   h+='</tbody></table>';
+
+  // ── Section Watchlist ──────────────────────────────────────────
+  h+=`<div style="margin-top:28px;margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#aaa">Ma Watchlist</div>`;
+  const wlWithFund=watchlist.filter(w=>fundamentals[w.ticker]);
+  if(wlWithFund.length===0){
+    h+=`<p style="font-size:12px;color:#aaa">Aucun ratio chargé pour la watchlist. Cliquez sur "Charger les ratios" pour les inclure.</p>`;
+  } else {
+    h+=`<table><thead><tr>
+      ${thFond('name','Titre','left')}
+      ${thFond('cp','Cours €')}
+      ${thFond('per','PER')}
+      ${thFond('perf','PER Fwd')}
+      ${thFond('peg','PEG')}
+      ${thFond('epsG','Croiss. BPA')}
+      ${thFond('margin','Marge nette')}
+      ${thFond('revG','Revenus YoY')}
+      ${thFond('pfcf','P/FCF')}
+      ${thFond('fcfG','Croiss. FCF')}
+      ${thFond('athPct','vs ATH (52s)')}
+    </tr></thead><tbody>`;
+    wlWithFund.forEach(w=>{
+      const f=fundamentals[w.ticker]||{};
+      const cpEUR=watchlistPrices[w.ticker]?wlPriceToEUR(w.ticker,watchlistPrices[w.ticker]):null;
+      const cpUSD=watchlistPrices[w.ticker]||null;
+      const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
+      const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
+      const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
+      const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
+      const margin=f.ProfitMargin&&f.ProfitMargin!=='None'?parseFloat(f.ProfitMargin)*100:null;
+      const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
+      const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
+      const mktCap=f.MarketCapitalization&&f.MarketCapitalization!=='None'?parseFloat(f.MarketCapitalization):null;
+      const pfcf=f._pfcf||(mktCap&&f._fcf&&f._fcf>0?mktCap/f._fcf:null);
+      const fcfG=f._fcfGrowth||null;
+      const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
+      let athCell='<span class="r-na">—</span>';
+      if(athPct!=null){
+        const cl=athPct>=-10?'pos':'neg';
+        athCell=`<span class="${cl}">${athPct>=0?'+':''}${athPct.toFixed(1)}%</span>`;
+      }
+      h+=`<tr>
+        <td style="font-weight:600">${w.name||w.ticker} <span style="font-size:10px;color:#aaa">${w.ticker}</span></td>
+        <td>${cpEUR?eur(cpEUR):'<span class="r-na">—</span>'}</td>
+        <td>${ratioCell('per',per)}</td>
+        <td>${ratioCell('perf',perf)}</td>
+        <td>${ratioCell('peg',peg)}</td>
+        <td>${ratioCell('epsGrowth',epsG,'%')}</td>
+        <td>${ratioCell('margin',margin,'%')}</td>
+        <td>${ratioCell('revGrowth',revG,'%')}</td>
+        <td>${ratioCell('pfcf',pfcf)}</td>
+        <td>${ratioCell('fcfGrowth',fcfG,'%')}</td>
+        <td>${athCell}</td>
+      </tr>`;
+    });
+    h+='</tbody></table>';
+  }
+
   h+=`<div style="text-align:right;margin-top:10px">
     <button class="btn btn-sm" onclick="loadFundamentals()">↻ Rafraîchir</button>
-    <span style="font-size:11px;color:#aaa;margin-left:8px">Yahoo Finance + FMP (sans quota)</span>
+    <span style="font-size:11px;color:#aaa;margin-left:8px">AV + FMP</span>
   </div>`;
   document.getElementById('fond-tbl').innerHTML=h;
 }
@@ -1985,6 +2095,89 @@ function addTx(){
   });
   save();renderTx();
 }
+// ── MARCHÉS ────────────────────────────────────────────────────────
+const MARKET_ITEMS=[
+  {group:'Indices Actions',items:[
+    {label:'S&P 500',     ticker:'^GSPC'},
+    {label:'NASDAQ',      ticker:'^IXIC'},
+    {label:'CAC 40',      ticker:'^FCHI'},
+    {label:'DAX',         ticker:'^GDAXI'},
+    {label:'Eurostoxx 50',ticker:'^STOXX50E'},
+    {label:'Nikkei 225',  ticker:'^N225'},
+    {label:'KOSPI',       ticker:'^KS11'},
+  ]},
+  {group:'Matières premières & Crypto',items:[
+    {label:'Or (XAU/USD)',   ticker:'GC=F'},
+    {label:'Pétrole WTI',    ticker:'CL=F'},
+    {label:'Bitcoin',        ticker:'BTC-USD'},
+  ]},
+  {group:'Taux & Change',items:[
+    {label:'Taux 10Y US',    ticker:'^TNX'},
+    {label:'EUR/USD',        ticker:'EURUSD=X'},
+    {label:'USD/JPY',        ticker:'JPY=X'},
+  ]},
+];
+
+let marketData={};
+
+async function loadMarkets(){
+  const el=document.getElementById('markets-tbl');
+  el.innerHTML='<p style="color:#aaa;font-size:12px">Chargement…</p>';
+  const allTickers=MARKET_ITEMS.flatMap(g=>g.items.map(i=>i.ticker));
+  await Promise.all(allTickers.map(async tk=>{
+    try{
+      const r=await fetch(`${API_BASE}?symbol=${encodeURIComponent(tk)}`);
+      if(r.ok){
+        const d=await r.json();
+        if(d.price) marketData[tk]={price:d.price,changePct:d.changePct,changeAbs:d.changeAbs,currency:d.currency};
+      }
+    }catch(e){}
+  }));
+  renderMarkets();
+}
+
+function renderMarkets(){
+  const el=document.getElementById('markets-tbl');
+  if(!el)return;
+  let h='';
+  MARKET_ITEMS.forEach(group=>{
+    h+=`<div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#aaa;margin-bottom:8px">${group.group}</div>
+      <table><thead><tr>
+        <th class="left">Actif</th>
+        <th>Cours</th>
+        <th>Var. J</th>
+        <th>Var. J (abs)</th>
+      </tr></thead><tbody>`;
+    group.items.forEach(item=>{
+      const d=marketData[item.ticker];
+      if(!d){
+        h+=`<tr><td style="font-weight:600">${item.label}</td><td colspan="3"><span class="r-na">—</span></td></tr>`;
+        return;
+      }
+      const chgPct=d.changePct;
+      const chgAbs=d.changeAbs;
+      const cl=chgPct==null?'':chgPct>=0?'pos':'neg';
+      const sign=chgPct>=0?'+':'';
+      const cur=d.currency||'';
+      // Format cours selon type
+      let priceFmt;
+      if(item.ticker==='^TNX') priceFmt=d.price.toFixed(3)+'%';
+      else if(['EURUSD=X','JPY=X'].includes(item.ticker)) priceFmt=d.price.toFixed(4);
+      else if(d.price>1000) priceFmt=d.price.toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:0})+' '+cur;
+      else priceFmt=d.price.toFixed(2)+' '+cur;
+      h+=`<tr>
+        <td style="font-weight:600">${item.label} <span style="font-size:10px;color:#aaa">${item.ticker}</span></td>
+        <td style="font-weight:600">${priceFmt}</td>
+        <td class="${cl}" style="font-weight:600">${chgPct!=null?sign+chgPct.toFixed(2)+'%':'—'}</td>
+        <td class="${cl}">${chgAbs!=null?sign+chgAbs.toFixed(2):'—'}</td>
+      </tr>`;
+    });
+    h+='</tbody></table></div>';
+  });
+  el.innerHTML=h||'<p style="color:#aaa">Aucune donnée.</p>';
+}
+
 function exportCSV(){
   const h='Date,Ticker,Nom,Compte,Type,Quantité,Prix unitaire,Total,Note\n';
   const rows=txs.map(t=>`${t.date||''},${t.ticker},${t.name||''},${t.account||''},${t.type==='buy'?'Achat':'Vente'},${t.qty},${t.price},${(t.qty*t.price).toFixed(2)},${t.note||''}`).join('\n');
@@ -2002,6 +2195,7 @@ function go(name,el){
   if(name==='watchlist') renderWatchlist();
   if(name==='gerer'){renderManualPrices();renderLiquidites();renderManualRatios();}
   if(name==='performance') renderPerformance();
+  if(name==='marches') renderMarkets();
 }
 
 load();loadAll();
