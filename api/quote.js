@@ -46,15 +46,19 @@ module.exports = async (req, res) => {
       }
 
       // FCF depuis cash flow statement
-      let fcfGrowth = null, fcf0 = null;
+      let fcfGrowth = null, fcf0 = null, cfo0 = null, capex0 = null;
       if (rCF.ok) {
         const cfData = await rCF.json();
         if (Array.isArray(cfData) && cfData.length >= 2) {
-          fcf0 = cfData[0]?.freeCashFlow || null;
+          fcf0   = cfData[0]?.freeCashFlow || null;
+          cfo0   = cfData[0]?.operatingCashFlow || null;
+          capex0 = cfData[0]?.capitalExpenditure || null;
           const fcf1 = cfData[1]?.freeCashFlow || null;
           if (fcf0 && fcf1 && fcf1 !== 0) fcfGrowth = ((fcf0 - fcf1) / Math.abs(fcf1)) * 100;
         } else if (Array.isArray(cfData) && cfData.length === 1) {
-          fcf0 = cfData[0]?.freeCashFlow || null;
+          fcf0   = cfData[0]?.freeCashFlow || null;
+          cfo0   = cfData[0]?.operatingCashFlow || null;
+          capex0 = cfData[0]?.capitalExpenditure || null;
         }
       }
 
@@ -66,6 +70,9 @@ module.exports = async (req, res) => {
         pegRatio:          r?.priceToEarningsGrowthRatioTTM || null,
         profitMarginPct:   r?.netProfitMarginTTM ? r.netProfitMarginTTM * 100 : null,
         freeCashflow:      fcf0,
+        operatingCashFlow: cfo0,
+        capex:             capex0 ? Math.abs(capex0) : null,
+        capexToCFO:        cfo0 && capex0 && cfo0 !== 0 ? (Math.abs(capex0) / cfo0) * 100 : null,
         fcfGrowth:         fcfGrowth,
         pfcf:              r?.priceToFreeCashFlowRatioTTM || null,
         mktCap:            m?.marketCap || null,
