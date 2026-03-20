@@ -108,10 +108,10 @@ input:focus,select:focus{outline:none;border-color:#999}
     <button class="tab" onclick="go('performance',this)">Performance</button>
     <button class="tab" onclick="go('repartition',this)">Répartition</button>
     <button class="tab" onclick="go('fondamentaux',this)">Ratios</button>
+    <button class="tab" onclick="go('marches',this)">Marchés</button>
     <button class="tab" onclick="go('watchlist',this)">Watchlist</button>
     <button class="tab" onclick="go('historique',this)">Transactions</button>
     <button class="tab" onclick="go('gerer',this)">Gérer</button>
-    <button class="tab" onclick="go('marches',this)">Marchés</button>
   </div>
 
   <!-- POSITIONS -->
@@ -355,8 +355,8 @@ const DEFAULTS=[
   {ticker:'COIN',name:'Coinbase',qty:1,pru:140.45,account:'CTO1',sector:'Finance',geo:'USA'},
   {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:311.58,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'LYFT',name:'Lyft',qty:10,pru:18.44,account:'CTO1',sector:'Consommation',geo:'USA'},
-  {ticker:'MSFT',name:'Microsoft',qty:1.6,pru:435.21,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'NVDA',name:'Nvidia',qty:5,pru:178.35,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'MSFT',name:'Microsoft',qty:1.85,pru:428.53,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'NVDA',name:'Nvidia',qty:7,pru:177.64,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'NVTS',name:'Navitas Semi',qty:20,pru:9.09,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'RDDT',name:'Reddit',qty:3,pru:139.84,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'TSM',name:'TSMC',qty:1,pru:295.64,account:'CTO1',sector:'Tech',geo:'Asie'},
@@ -564,7 +564,7 @@ let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
 let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
 let fxKRW=0.00068; // 1 KRW ≈ 0.00068 EUR (taux mars 2026)
-let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:404.41,CTO2:5.02,PEA:32.81}));
+let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:18,CTO2:5.02,PEA:32.81}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
 
@@ -1250,6 +1250,7 @@ function renderPositions(){
     ${thSort('pnl','PV/MV €')}
     ${thSort('pnlPct','PV%')}
     <th>Var. J</th>
+    <th>PV/MV J</th>
     <th>Poids direct / réel ⓘ</th>
     <th>Comptes</th>
   </tr></thead><tbody>`;
@@ -1282,6 +1283,11 @@ function renderPositions(){
     const chgCell=chgPct!=null
       ?`<span class="${chgPct>=0?'pos':'neg'}" style="font-weight:600">${chgPct>=0?'+':''}${chgPct.toFixed(2)}%</span>`
       :'<span class="r-na">—</span>';
+    // PV/MV journalière = valeur marché × variation %
+    const pvDayEUR=chgPct!=null?(g.totalMV*(chgPct/100)):null;
+    const pvDayCell=pvDayEUR!=null
+      ?`<span class="${pvDayEUR>=0?'pos':'neg'}" style="font-weight:600">${pvDayEUR>=0?'+':''}${eur(pvDayEUR)}</span>`
+      :'<span class="r-na">—</span>';
     h+=`<tr class="main-row" onclick="toggleRow(${gi},'${g.ticker}')">
       <td style="font-weight:600">${arrow}${g.name||g.ticker}</td>
       <td>${g.totalQty<1?g.totalQty.toFixed(3):g.totalQty%1===0?g.totalQty:g.totalQty.toFixed(3)}</td>
@@ -1290,6 +1296,7 @@ function renderPositions(){
       <td class="${cl}" style="font-weight:600">${eur(g.pnl)}</td>
       <td class="${cl}">${fpct(g.pnlPct)}</td>
       <td>${chgCell}</td>
+      <td>${pvDayCell}</td>
       <td>${poidsCell}</td>
       <td>${badges}</td>
     </tr>`;
@@ -1392,12 +1399,16 @@ async function loadFundamentals(includeWL=false){
         if(Array.isArray(cd)&&cd.length>=2){
           const fcf0=cd[0].freeCashFlow||null;
           const fcf1=cd[1].freeCashFlow||null;
-          if(fcf0&&fcf1&&fcf1!==0&&fundamentals[tk]){
+          if(fcf0&&fundamentals[tk]){
             fundamentals[tk]._fcf=fcf0;
-            fundamentals[tk]._fcfGrowth=((fcf0-fcf1)/Math.abs(fcf1))*100;
+            fundamentals[tk]._cfo=cd[0].operatingCashFlow||null;
+            fundamentals[tk]._capex=cd[0].capitalExpenditure?Math.abs(cd[0].capitalExpenditure):null;
+            if(fcf1&&fcf1!==0) fundamentals[tk]._fcfGrowth=((fcf0-fcf1)/Math.abs(fcf1))*100;
           }
         } else if(Array.isArray(cd)&&cd.length===1&&fundamentals[tk]){
           fundamentals[tk]._fcf=cd[0].freeCashFlow||null;
+          fundamentals[tk]._cfo=cd[0].operatingCashFlow||null;
+          fundamentals[tk]._capex=cd[0].capitalExpenditure?Math.abs(cd[0].capitalExpenditure):null;
         }
       }
     }catch(e){}
@@ -1479,8 +1490,11 @@ function renderFondamentaux(){
     const fcfPrev=f._fcfPrev||null;
     const pfcf=f._pfcf||(mktCap&&fcf&&fcf>0?mktCap/fcf:null);
     const fcfG=f._fcfGrowth||(fcf&&fcfPrev&&fcfPrev!==0?((fcf-fcfPrev)/Math.abs(fcfPrev))*100:null);
+    const cfo=f._cfo||null;
+    const capex=f._capex||null;
+    const capexRatio=cfo&&capex&&cfo>0?(capex/cfo)*100:null;
     const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
-    return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,athPct,name:pos?.name||f.Name||tk};
+    return{tk,pos,f,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,cfo,capex,capexRatio,athPct,name:pos?.name||f.Name||tk};
   });
 
   // Tri
@@ -1504,10 +1518,12 @@ function renderFondamentaux(){
     ${thFond('revG','Revenus YoY')}
     ${thFond('pfcf','P/FCF')}
     ${thFond('fcfG','Croiss. FCF')}
+    ${thFond('cfo','CFO')}
+    ${thFond('capexRatio','Capex/CFO')}
     ${thFond('athPct','vs ATH (52s)')}
   </tr></thead><tbody>`;
 
-  rows.forEach(({tk,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,athPct,name})=>{
+  rows.forEach(({tk,cp,cpUSD,per,perf,peg,epsG,margin,revG,w52h,pfcf,fcfG,cfo,capex,capexRatio,athPct,name})=>{
     // ATH cell : rouge si proche du haut, vert si loin
     let athCell='<span class="r-na">—</span>';
     if(athPct!=null){
@@ -1526,6 +1542,8 @@ function renderFondamentaux(){
       <td>${ratioCell('revGrowth',revG,'%')}</td>
       <td>${ratioCell('pfcf',pfcf)}</td>
       <td>${ratioCell('fcfGrowth',fcfG,'%')}</td>
+      <td>${cfo!=null?`<span style="font-size:11px">${cfo>=1e9?(cfo/1e9).toFixed(1)+'Md':cfo>=1e6?(cfo/1e6).toFixed(0)+'M':'—'}</span>`:'<span class="r-na">—</span>'}</td>
+      <td>${capexRatio!=null?`<span style="color:${capexRatio>60?'#dc2626':capexRatio>30?'#d97706':'#16a34a'};font-weight:600">${capexRatio.toFixed(0)}%</span>`:'<span class="r-na">—</span>'}</td>
       <td>${athCell}</td>
     </tr>`;
   });
@@ -1564,21 +1582,21 @@ function renderFondamentaux(){
     <td>—</td>
     <td>${avgCell('per',wR.per)}</td><td>${avgCell('perf',wR.perf)}</td><td>${avgCell('peg',wR.peg)}</td>
     <td>${avgCell('epsGrowth',wR.epsG,'%')}</td><td>${avgCell('margin',wR.margin,'%')}</td><td>${avgCell('revGrowth',wR.revG,'%')}</td>
-    <td>${avgCell('pfcf',wR.pfcf)}</td><td>${avgCell('fcfGrowth',wR.fcfG,'%')}</td><td>—</td>
+    <td>${avgCell('pfcf',wR.pfcf)}</td><td>${avgCell('fcfGrowth',wR.fcfG,'%')}</td><td>—</td><td>—</td><td>—</td>
   </tr>
   <tr style="background:#fafafa;border-top:1px solid #eee">
     <td style="font-weight:700;color:#666">Moy. simple <span style="font-size:10px;font-weight:400;color:#aaa">(1/N titres)</span></td>
     <td>—</td>
     <td>${avgCell('per',sR.per)}</td><td>${avgCell('perf',sR.perf)}</td><td>${avgCell('peg',sR.peg)}</td>
     <td>${avgCell('epsGrowth',sR.epsG,'%')}</td><td>${avgCell('margin',sR.margin,'%')}</td><td>${avgCell('revGrowth',sR.revG,'%')}</td>
-    <td>${avgCell('pfcf',sR.pfcf)}</td><td>${avgCell('fcfGrowth',sR.fcfG,'%')}</td><td>—</td>
+    <td>${avgCell('pfcf',sR.pfcf)}</td><td>${avgCell('fcfGrowth',sR.fcfG,'%')}</td><td>—</td><td>—</td><td>—</td>
   </tr>
   <tr style="background:#fff8f0;border-top:1px solid #eee">
     <td style="font-weight:700;color:#d97706">Médiane <span style="font-size:10px;font-weight:400;color:#aaa">(valeur centrale)</span></td>
     <td>—</td>
     <td>${avgCell('per',mR.per)}</td><td>${avgCell('perf',mR.perf)}</td><td>${avgCell('peg',mR.peg)}</td>
     <td>${avgCell('epsGrowth',mR.epsG,'%')}</td><td>${avgCell('margin',mR.margin,'%')}</td><td>${avgCell('revGrowth',mR.revG,'%')}</td>
-    <td>${avgCell('pfcf',mR.pfcf)}</td><td>${avgCell('fcfGrowth',mR.fcfG,'%')}</td><td>—</td>
+    <td>${avgCell('pfcf',mR.pfcf)}</td><td>${avgCell('fcfGrowth',mR.fcfG,'%')}</td><td>—</td><td>—</td><td>—</td>
   </tr>`;
 
   h+='</tbody></table>';
@@ -2109,6 +2127,7 @@ const MARKET_ITEMS=[
     {label:'Eurostoxx 50',ticker:'^STOXX50E'},
     {label:'Nikkei 225',  ticker:'^N225'},
     {label:'KOSPI',       ticker:'^KS11'},
+    {label:'VIX',         ticker:'^VIX'},
   ]},
   {group:'Matières premières & Crypto',items:[
     {label:'Or',          ticker:'GC=F'},
