@@ -551,8 +551,11 @@ let manualPrices=JSON.parse(localStorage.getItem('pf_manual')||'{}');
 
 // Ratios manuels — prioritaires sur AV (pour Samsung, Advantest, etc.)
 const DEFAULT_MANUAL_FUND={
-  '005930.KS':{per:29.37, perf:8.48, peg:0.22, epsG:155.4, margin:13.27, revG:23.8},
-  '6857.T':   {per:67.51, perf:38.76,peg:1.11, epsG:51.7,  margin:27.93, revG:25.5},
+  '005930.KS':{per:29.37, perf:8.48,  peg:0.22, epsG:155.4, margin:13.27, revG:23.8},
+  '6857.T':   {per:67.51, perf:38.76, peg:1.11, epsG:51.7,  margin:27.93, revG:25.5},
+  'GTT.PA':   {per:17.78, perf:17.60, peg:null, epsG:19.0,  margin:51.5,  revG:25.0},
+  'MC.PA':    {per:21.44, perf:20.05, peg:2.08, epsG:null,  margin:13.5,  revG:null},
+  'AI.PA':    {per:26.98, perf:23.06, peg:2.29, epsG:null,  margin:12.5,  revG:null},
 };
 let manualFundamentals=JSON.parse(localStorage.getItem('pf_manual_fund')||JSON.stringify(DEFAULT_MANUAL_FUND));
 let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
@@ -1603,7 +1606,8 @@ function renderFondamentaux(){
 
   // ── Section Watchlist ──────────────────────────────────────────
   h+=`<div style="margin-top:28px;margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#aaa">Ma Watchlist</div>`;
-  const wlWithFund=watchlist.filter(w=>fundamentals[w.ticker]);
+  // Inclure watchlist avec ratios AV OU ratios manuels
+  const wlWithFund=watchlist.filter(w=>fundamentals[w.ticker]||manualFundamentals[w.ticker]);
   if(wlWithFund.length===0){
     h+=`<p style="font-size:12px;color:#aaa">Aucun ratio chargé pour la watchlist. Cliquez sur "Charger les ratios" pour les inclure.</p>`;
   } else {
@@ -1621,19 +1625,21 @@ function renderFondamentaux(){
       ${thFond('athPct','vs ATH (52s)')}
     </tr></thead><tbody>`;
     wlWithFund.forEach(w=>{
-      const f=fundamentals[w.ticker]||{};
+      const fAV=fundamentals[w.ticker]||{};
+      const fMan=manualFundamentals[w.ticker]||{};
       const cpEUR=watchlistPrices[w.ticker]?wlPriceToEUR(w.ticker,watchlistPrices[w.ticker]):null;
       const cpUSD=watchlistPrices[w.ticker]||null;
-      const per=f.PERatio&&f.PERatio!=='None'?parseFloat(f.PERatio):null;
-      const perf=f.ForwardPE&&f.ForwardPE!=='None'?parseFloat(f.ForwardPE):null;
-      const peg=f.PEGRatio&&f.PEGRatio!=='None'?parseFloat(f.PEGRatio):null;
-      const epsG=f.QuarterlyEarningsGrowthYOY&&f.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(f.QuarterlyEarningsGrowthYOY)*100:null;
-      const margin=f.ProfitMargin&&f.ProfitMargin!=='None'?parseFloat(f.ProfitMargin)*100:null;
-      const revG=f.QuarterlyRevenueGrowthYOY&&f.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(f.QuarterlyRevenueGrowthYOY)*100:null;
-      const w52h=f['52WeekHigh']&&f['52WeekHigh']!=='None'?parseFloat(f['52WeekHigh']):null;
-      const mktCap=f.MarketCapitalization&&f.MarketCapitalization!=='None'?parseFloat(f.MarketCapitalization):null;
-      const pfcf=f._pfcf||(mktCap&&f._fcf&&f._fcf>0?mktCap/f._fcf:null);
-      const fcfG=f._fcfGrowth||null;
+      // Priorité : manuel > AV
+      const per=fMan.per!=null?fMan.per:(fAV.PERatio&&fAV.PERatio!=='None'?parseFloat(fAV.PERatio):null);
+      const perf=fMan.perf!=null?fMan.perf:(fAV.ForwardPE&&fAV.ForwardPE!=='None'?parseFloat(fAV.ForwardPE):null);
+      const peg=fMan.peg!=null?fMan.peg:(fAV.PEGRatio&&fAV.PEGRatio!=='None'?parseFloat(fAV.PEGRatio):null);
+      const epsG=fMan.epsG!=null?fMan.epsG:(fAV.QuarterlyEarningsGrowthYOY&&fAV.QuarterlyEarningsGrowthYOY!=='None'?parseFloat(fAV.QuarterlyEarningsGrowthYOY)*100:null);
+      const margin=fMan.margin!=null?fMan.margin:(fAV.ProfitMargin&&fAV.ProfitMargin!=='None'?parseFloat(fAV.ProfitMargin)*100:null);
+      const revG=fMan.revG!=null?fMan.revG:(fAV.QuarterlyRevenueGrowthYOY&&fAV.QuarterlyRevenueGrowthYOY!=='None'?parseFloat(fAV.QuarterlyRevenueGrowthYOY)*100:null);
+      const w52h=fAV['52WeekHigh']&&fAV['52WeekHigh']!=='None'?parseFloat(fAV['52WeekHigh']):null;
+      const mktCap=fAV.MarketCapitalization&&fAV.MarketCapitalization!=='None'?parseFloat(fAV.MarketCapitalization):null;
+      const pfcf=fAV._pfcf||(mktCap&&fAV._fcf&&fAV._fcf>0?mktCap/fAV._fcf:null);
+      const fcfG=fAV._fcfGrowth||null;
       const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
       let athCell='<span class="r-na">—</span>';
       if(athPct!=null){
