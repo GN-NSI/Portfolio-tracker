@@ -362,8 +362,8 @@ const DEFAULTS=[
   {ticker:'TSM',name:'TSMC',qty:1,pru:295.64,account:'CTO1',sector:'Tech',geo:'Asie'},
   {ticker:'V',name:'Visa',qty:0.75,pru:327.4,account:'CTO1',sector:'Finance',geo:'USA'},
   // CTO2 — Trade Republic (PRU en EUR, mais titres US cotent en USD sur Yahoo)
-  {ticker:'6857.T',name:'Advantest',qty:3.001220,pru:109.98,account:'CTO2',sector:'Tech',geo:'Asie'},
-  {ticker:'005930.KS',name:'Samsung',qty:0.124891,pru:1149.27,account:'CTO2',sector:'Tech',geo:'Asie'},
+  {ticker:'6857.T',name:'Advantest',qty:3.001220,pru:109.98,account:'CTO2',sector:'Tech',geo:'Asie',priceJPY:true},
+  {ticker:'005930.KS',name:'Samsung',qty:0.124891,pru:1149.27,account:'CTO2',sector:'Tech',geo:'Asie',priceKRW:true},
   {ticker:'GOOGL',name:'Alphabet',qty:1,pru:148.92,account:'CTO2',sector:'Tech',geo:'USA',priceUSD:true},
   {ticker:'TSM',name:'TSMC',qty:0.609037,pru:256.13,account:'CTO2',sector:'Tech',geo:'Asie',priceUSD:true},
   {ticker:'COIN',name:'Coinbase',qty:1.002521,pru:167.56,account:'CTO2',sector:'Finance',geo:'USA',priceUSD:true},
@@ -559,15 +559,18 @@ let manualPrices=JSON.parse(localStorage.getItem('pf_manual')||'{}');
 
 // Ratios manuels — prioritaires sur AV (pour Samsung, Advantest, etc.)
 const DEFAULT_MANUAL_FUND={
-  '005930.KS':{per:29.37, perf:8.48,  peg:0.22, epsG:155.4, margin:13.27, revG:23.8},
-  '6857.T':   {per:67.51, perf:38.76, peg:1.11, epsG:51.7,  margin:27.93, revG:25.5},
-  'GTT.PA':   {per:17.78, perf:17.60, peg:null, epsG:19.0,  margin:51.5,  revG:25.0},
-  'SU.PA':    {per:28.0,  perf:24.0,  peg:1.99, epsG:null,  margin:10.4,  revG:null},
-  'MC.PA':    {per:21.44, perf:20.05, peg:2.08, epsG:null,  margin:13.5,  revG:null},
-  'AI.PA':    {per:26.98, perf:23.06, peg:2.29, epsG:null,  margin:12.5,  revG:null},
-  'RMS.PA':   {per:38.0,  perf:40.30, peg:3.27, epsG:null,  margin:28.0,  revG:null},
-  'MA':       {per:33.56, perf:28.48, peg:1.81, epsG:null,  margin:45.7,  revG:null},
-  'AMUN.PA':  {per:9.10,  perf:10.41, peg:1.30, epsG:null,  margin:39.63, revG:null},
+  '005930.KS':{per:30.20, perf:8.72,  peg:0.22,  epsG:155.4, margin:13.27, revG:23.8},
+  '6857.T':   {per:66.24, perf:38.02, peg:1.09,  epsG:51.7,  margin:27.93, revG:25.5},
+  'GTT.PA':   {per:17.78, perf:17.60, peg:null,  epsG:19.0,  margin:51.5,  revG:25.0},
+  'SU.PA':    {per:28.0,  perf:24.0,  peg:1.99,  epsG:-5.7,  margin:10.37, revG:4.2},
+  'MC.PA':    {per:21.44, perf:20.05, peg:2.08,  epsG:-2.0,  margin:13.47, revG:-4.7},
+  'AI.PA':    {per:26.98, perf:23.06, peg:2.29,  epsG:5.6,   margin:13.06, revG:-3.4},
+  'RMS.PA':   {per:38.0,  perf:40.30, peg:3.27,  epsG:1.9,   margin:28.27, revG:3.9},
+  'MA':       {per:33.56, perf:28.48, peg:1.81,  epsG:null,  margin:45.7,  revG:null},
+  'AMUN.PA':  {per:9.10,  perf:10.41, peg:1.30,  epsG:null,  margin:39.63, revG:null},
+  'BKNG':     {per:25.90, perf:16.03, peg:0.72,  epsG:33.7,  margin:20.08, revG:16.0},
+  'RDDT':     {per:null,  perf:null,  peg:null,  epsG:254.2, margin:24.1,  revG:69.7},
+  'SPGI':     {per:null,  perf:null,  peg:null,  epsG:28.9,  margin:29.1,  revG:9.0},
 };
 let manualFundamentals=JSON.parse(localStorage.getItem('pf_manual_fund')||JSON.stringify(DEFAULT_MANUAL_FUND));
 let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
@@ -579,6 +582,7 @@ let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
 let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
 let fxKRW=0.00068; // 1 KRW ≈ 0.00068 EUR (taux mars 2026)
+let fxJPY=0.00625; // 1 JPY ≈ 0.00625 EUR (taux mars 2026, ~160 JPY/EUR)
 let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:1018,CTO2:5.02,PEA:32.81}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
@@ -668,6 +672,14 @@ async function fetchFX(){
       if(d.rates?.EUR) fxKRW=d.rates.EUR;
     }
   }catch(e){}
+  // Frankfurter pour JPY
+  try{
+    const r=await fetch('https://api.frankfurter.app/latest?from=JPY&to=EUR');
+    if(r.ok){
+      const d=await r.json();
+      if(d.rates?.EUR&&d.rates.EUR>0.004&&d.rates.EUR<0.01) fxJPY=d.rates.EUR;
+    }
+  }catch(e){}
   // Fallback réaliste mars 2026
   if(fxUSD===0.92) fxUSD=0.918;
 }
@@ -710,8 +722,9 @@ function getCoursEUR(pos){
   if(manualPrices[pos.ticker]&&manualPrices[pos.ticker]>0) return manualPrices[pos.ticker];
   let p=prices[pos.ticker]||null;
   if(!p) return null;
-  // Convertir si USD : CTO1 (IBKR) ou titres explicitement marqués priceUSD sur TR
   if(accCurrency(pos.account)==='USD'||pos.priceUSD) return p*fxUSD;
+  if(pos.priceJPY) return p*fxJPY;
+  if(pos.priceKRW) return p*fxKRW;
   return p;
 }
 function getPRUeur(pos){return accCurrency(pos.account)==='USD'?pos.pru*fxUSD:pos.pru;}
@@ -1522,7 +1535,9 @@ function renderFondamentaux(){
     const fcfPrev=f._fcfPrev||null;
     const pfcf=f._pfcf||(mktCap&&fcf&&fcf>0?mktCap/fcf:null);
     const fcfG=f._fcfGrowth||(fcf&&fcfPrev&&fcfPrev!==0?((fcf-fcfPrev)/Math.abs(fcfPrev))*100:null);
-    const cfo=f._cfo||null;
+    const cfoRaw=f._cfo||null;
+    // Filtre anti-aberration : CFO > 500Mds€ = probablement en devise locale (TWD, KRW...)
+    const cfo=cfoRaw&&cfoRaw<500e9?cfoRaw:null;
     const capex=f._capex||null;
     const capexRatio=cfo&&capex&&cfo>0?(capex/cfo)*100:null;
     const athPct=w52h&&cpUSD?((cpUSD-w52h)/w52h)*100:null;
