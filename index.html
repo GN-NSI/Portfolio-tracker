@@ -579,7 +579,7 @@ let snapshots=JSON.parse(localStorage.getItem('pf_snapshots')||'[]');
 let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
 let fxKRW=0.00068; // 1 KRW ≈ 0.00068 EUR (taux mars 2026)
-let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:18,CTO2:5.02,PEA:32.81}));
+let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:1018,CTO2:5.02,PEA:32.81}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
 
@@ -932,19 +932,36 @@ function renderPerfCards(){
 
 function renderPerfPvTable(){
   const realized=computeRealizedPnL();
-  const groups=consolidate().sort((a,b)=>b.totalMV-a.totalMV);
+  const groups=consolidate();
+  // Map ticker -> {name, totalMV}
+  const groupMap={};
+  groups.forEach(g=>{groupMap[g.ticker]={name:g.name,totalMV:g.totalMV};});
+  // Fusionner avec titres vendus (qui ont PV réalisée mais plus de position)
+  const allTickers=new Set([...Object.keys(realized),...Object.keys(groupMap)]);
+  // Ne garder que ceux avec PV réalisée non nulle
+  const rows=[];
+  allTickers.forEach(ticker=>{
+    const real=realized[ticker]?.realized||0;
+    if(real===0) return;
+    const name=groupMap[ticker]?.name||realized[ticker]?.name||ticker;
+    const mv=groupMap[ticker]?.totalMV||0;
+    rows.push({ticker,name,mv,real});
+  });
+  rows.sort((a,b)=>Math.abs(b.real)-Math.abs(a.real));
   let h=`<table><thead><tr>
-    <th class="left">Titre</th><th>Montant</th>
+    <th class="left">Titre</th><th>Montant actuel</th>
     <th>PV réalisée €</th>
   </tr></thead><tbody>`;
   let totR=0;
-  groups.forEach(g=>{
-    const real=realized[g.ticker]?.realized||0;
-    totR+=real;
+  if(rows.length===0){
+    h+=`<tr><td colspan="3" style="color:#aaa;text-align:center;padding:16px">Aucune plus-value réalisée</td></tr>`;
+  }
+  rows.forEach(r=>{
+    totR+=r.real;
     h+=`<tr>
-      <td style="font-weight:600">${g.name} <span style="font-size:10px;color:#aaa">${g.ticker}</span></td>
-      <td>${eur(g.totalMV)}</td>
-      <td style="color:${real===0?'#aaa':real>0?'#16a34a':'#dc2626'};font-weight:${real!==0?600:400}">${real!==0?eur(real):'—'}</td>
+      <td style="font-weight:600">${r.name} <span style="font-size:10px;color:#aaa">${r.ticker}</span></td>
+      <td>${r.mv>0?eur(r.mv):'<span style="color:#aaa">—</span>'}</td>
+      <td style="color:${r.real>0?'#16a34a':'#dc2626'};font-weight:600">${eur(r.real)}</td>
     </tr>`;
   });
   h+=`<tr class="pv-total-row"><td>TOTAL</td><td>—</td>
