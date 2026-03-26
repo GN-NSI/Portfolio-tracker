@@ -403,6 +403,9 @@ const DEFAULT_TXS=[
   {ticker:'BY6.F',name:'BYD',type:'sell',qty:5.00442,price:31.29,date:'2025-11-04',note:'TR — vente totale',account:'CTO2'},
   {ticker:'BY6.F',name:'BYD',type:'dividend',qty:1,price:2.08,date:'2025-08-12',note:'TR — dividende BYD',account:'CTO2'},
   {ticker:'005930.KS',name:'Samsung',type:'sell',qty:0.12489,price:2002.56,date:'2025-01-14',note:'TR — vente partielle',account:'CTO2'},
+  // IBKR 2025-2026
+  {ticker:'VRT',name:'Vertiv',type:'buy', qty:1,price:163.78,date:'2025-12-10',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'VRT',name:'Vertiv',type:'sell',qty:1,price:244.55,date:'2026-02-19',note:'IBKR — vente totale',account:'CTO1'},
 ];
 
 // ── SNAPSHOTS PAR DÉFAUT ─────────────────────────────────────────
@@ -534,18 +537,23 @@ let sortFondCol='name',sortFondDir=1;
 let sortWlCol='name',sortWlDir=1;
 
 const DEFAULT_WATCHLIST=[
-  {ticker:'MC.PA',    name:'LVMH',              target:450,  note:'', currency:'EUR'},
-  {ticker:'000660.KS',name:'SK Hynix',          target:500,  note:'', currency:'EUR'},
-  {ticker:'NBIS',     name:'Nebius',            target:75,   note:'', currency:'USD'},
-  {ticker:'FICO',     name:'FICO',              target:900,  note:'', currency:'USD'},
-  {ticker:'LITE',     name:'Lumentum Holdings', target:500,  note:'', currency:'USD'},
-  {ticker:'ORCL',     name:'Oracle',            target:120,  note:'', currency:'USD'},
-  {ticker:'AI.PA',    name:'Air Liquide',       target:160,  note:'', currency:'EUR'},
-  {ticker:'GTT.PA',   name:'GTT',               target:160,  note:'', currency:'EUR'},
-  {ticker:'CRWD',     name:'CrowdStrike',       target:300,  note:'', currency:'USD'},
-  {ticker:'PANW',     name:'Palo Alto Networks',target:120,  note:'', currency:'USD'},
-  {ticker:'OKLO',     name:'Oklo Inc',          target:null, note:'', currency:'USD'},
-  {ticker:'ASTS',     name:'AST SpaceMobile',   target:60,   note:'', currency:'USD'},
+  {ticker:'MA',       name:'Mastercard',         target:440,  note:'Moat réseau, marge 45%, asset-light', currency:'USD'},
+  {ticker:'AMUN.PA',  name:'Amundi',             target:68,   note:'Asset manager ETF, PER bas, dividende 6%', currency:'EUR'},
+  {ticker:'RMS.PA',   name:'Hermès',             target:1450, note:'Luxe ultra-premium, savoir-faire unique, bénéficiaire concentration du capital', currency:'EUR'},
+  {ticker:'SU.PA',    name:'Schneider Electric', target:225,  note:'Datacenters + automatisation, contrats LT', currency:'EUR'},
+  {ticker:'VRT',      name:'Vertiv',             target:null, note:'Infrastructure datacenter, refroidissement IA', currency:'USD'},
+  {ticker:'MC.PA',    name:'LVMH',               target:450,  note:'', currency:'EUR'},
+  {ticker:'000660.KS',name:'SK Hynix',           target:500,  note:'', currency:'EUR'},
+  {ticker:'NBIS',     name:'Nebius',             target:75,   note:'', currency:'USD'},
+  {ticker:'FICO',     name:'FICO',               target:900,  note:'', currency:'USD'},
+  {ticker:'LITE',     name:'Lumentum Holdings',  target:500,  note:'', currency:'USD'},
+  {ticker:'ORCL',     name:'Oracle',             target:120,  note:'', currency:'USD'},
+  {ticker:'AI.PA',    name:'Air Liquide',        target:160,  note:'', currency:'EUR'},
+  {ticker:'GTT.PA',   name:'GTT',                target:160,  note:'', currency:'EUR'},
+  {ticker:'CRWD',     name:'CrowdStrike',        target:300,  note:'', currency:'USD'},
+  {ticker:'PANW',     name:'Palo Alto Networks', target:120,  note:'', currency:'USD'},
+  {ticker:'OKLO',     name:'Oklo Inc',           target:null, note:'', currency:'USD'},
+  {ticker:'ASTS',     name:'AST SpaceMobile',    target:60,   note:'', currency:'USD'},
 ];
 let manualPrices=JSON.parse(localStorage.getItem('pf_manual')||'{}');
 
@@ -554,8 +562,12 @@ const DEFAULT_MANUAL_FUND={
   '005930.KS':{per:29.37, perf:8.48,  peg:0.22, epsG:155.4, margin:13.27, revG:23.8},
   '6857.T':   {per:67.51, perf:38.76, peg:1.11, epsG:51.7,  margin:27.93, revG:25.5},
   'GTT.PA':   {per:17.78, perf:17.60, peg:null, epsG:19.0,  margin:51.5,  revG:25.0},
+  'SU.PA':    {per:28.0,  perf:24.0,  peg:1.99, epsG:null,  margin:10.4,  revG:null},
   'MC.PA':    {per:21.44, perf:20.05, peg:2.08, epsG:null,  margin:13.5,  revG:null},
   'AI.PA':    {per:26.98, perf:23.06, peg:2.29, epsG:null,  margin:12.5,  revG:null},
+  'RMS.PA':   {per:38.0,  perf:40.30, peg:3.27, epsG:null,  margin:28.0,  revG:null},
+  'MA':       {per:33.56, perf:28.48, peg:1.81, epsG:null,  margin:45.7,  revG:null},
+  'AMUN.PA':  {per:9.10,  perf:10.41, peg:1.30, epsG:null,  margin:39.63, revG:null},
 };
 let manualFundamentals=JSON.parse(localStorage.getItem('pf_manual_fund')||JSON.stringify(DEFAULT_MANUAL_FUND));
 let fundamentals=JSON.parse(localStorage.getItem('pf_fundamentals')||'{}');
