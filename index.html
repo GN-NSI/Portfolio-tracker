@@ -827,23 +827,27 @@ function computeRealizedPnL(){
   const result={};
   Object.entries(byTicker).forEach(([ticker,txList])=>{
     const sorted=[...txList].sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const lots=[];let realized=0;
+    const lots=[];let realized=0;const byYear={};
     sorted.forEach(tx=>{
       if(tx.type==='buy'){lots.push({qty:tx.qty,price:tx.price});}
       else if(tx.type==='sell'){
-        let rem=tx.qty;
+        const year=tx.date?tx.date.substring(0,4):'?';
+        let rem=tx.qty;let yearPnl=0;
         while(rem>0.000001&&lots.length>0){
           const lot=lots[0];const c=Math.min(lot.qty,rem);
-          realized+=c*(tx.price-lot.price);lot.qty-=c;rem-=c;
+          const pnl=c*(tx.price-lot.price);
+          realized+=pnl;yearPnl+=pnl;lot.qty-=c;rem-=c;
           if(lot.qty<0.000001)lots.shift();
         }
+        byYear[year]=(byYear[year]||0)+yearPnl;
       }
       else if(tx.type==='dividend'){
-        // Dividende = revenu pur, s'ajoute directement à la PV réalisée
+        const year=tx.date?tx.date.substring(0,4):'?';
         realized+=tx.price*tx.qty;
+        byYear[year]=(byYear[year]||0)+tx.price*tx.qty;
       }
     });
-    if(realized!==0)result[ticker]={realized};
+    if(realized!==0)result[ticker]={realized,byYear};
   });
   return result;
 }
@@ -952,40 +956,68 @@ function renderPerfCards(){
 function renderPerfPvTable(){
   const realized=computeRealizedPnL();
   const groups=consolidate();
-  // Map ticker -> {name, totalMV}
   const groupMap={};
   groups.forEach(g=>{groupMap[g.ticker]={name:g.name,totalMV:g.totalMV};});
-  // Fusionner avec titres vendus (qui ont PV réalisée mais plus de position)
   const allTickers=new Set([...Object.keys(realized),...Object.keys(groupMap)]);
-  // Ne garder que ceux avec PV réalisée non nulle
+
+  // Construire rows avec byYear
   const rows=[];
   allTickers.forEach(ticker=>{
     const real=realized[ticker]?.realized||0;
     if(real===0) return;
-    const name=groupMap[ticker]?.name||realized[ticker]?.name||ticker;
+    const name=groupMap[ticker]?.name||ticker;
     const mv=groupMap[ticker]?.totalMV||0;
-    rows.push({ticker,name,mv,real});
+    const byYear=realized[ticker]?.byYear||{};
+    rows.push({ticker,name,mv,real,byYear});
   });
   rows.sort((a,b)=>Math.abs(b.real)-Math.abs(a.real));
-  let h=`<table><thead><tr>
-    <th class="left">Titre</th><th>Montant actuel</th>
-    <th>PV réalisée €</th>
-  </tr></thead><tbody>`;
-  let totR=0;
-  if(rows.length===0){
-    h+=`<tr><td colspan="3" style="color:#aaa;text-align:center;padding:16px">Aucune plus-value réalisée</td></tr>`;
-  }
+
+  // Calculer totaux par année
+  const yearTotals={};
   rows.forEach(r=>{
-    totR+=r.real;
-    h+=`<tr>
-      <td style="font-weight:600">${r.name} <span style="font-size:10px;color:#aaa">${r.ticker}</span></td>
-      <td>${r.mv>0?eur(r.mv):'<span style="color:#aaa">—</span>'}</td>
-      <td style="color:${r.real>0?'#16a34a':'#dc2626'};font-weight:600">${eur(r.real)}</td>
-    </tr>`;
+    Object.entries(r.byYear).forEach(([y,v])=>{
+      yearTotals[y]=(yearTotals[y]||0)+v;
+    });
   });
-  h+=`<tr class="pv-total-row"><td>TOTAL</td><td>—</td>
-    <td class="${totR>=0?'pos':'neg'}">${eur(totR)}</td>
-  </tr></tbody></table>`;
+  const years=Object.keys(yearTotals).sort().reverse();
+
+  let h='';
+
+  // ── Section par année ──────────────────────────────
+  years.forEach(year=>{
+    const ytot=yearTotals[year];
+    const yrows=rows.filter(r=>r.byYear[year]!=null);
+    h+=`<div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#aaa">${year}</span>
+        <span style="font-size:13px;font-weight:700;color:${ytot>=0?'#16a34a':'#dc2626'}">${ytot>=0?'+':''}${eur(ytot)}</span>
+        <span style="font-size:11px;color:#888">— À déclarer aux impôts</span>
+      </div>
+      <table><thead><tr>
+        <th class="left">Titre</th><th>Montant actuel</th><th>PV/MV ${year} €</th>
+      </tr></thead><tbody>`;
+    yrows.forEach(r=>{
+      const yval=r.byYear[year];
+      h+=`<tr>
+        <td style="font-weight:600">${r.name} <span style="font-size:10px;color:#aaa">${r.ticker}</span></td>
+        <td>${r.mv>0?eur(r.mv):'<span style="color:#aaa">—</span>'}</td>
+        <td style="color:${yval>=0?'#16a34a':'#dc2626'};font-weight:600">${eur(yval)}</td>
+      </tr>`;
+    });
+    h+=`</tbody></table></div>`;
+  });
+
+  // ── Total global ──────────────────────────────────
+  const totR=rows.reduce((s,r)=>s+r.real,0);
+  if(rows.length===0){
+    h=`<p style="color:#aaa;font-size:12px">Aucune plus-value réalisée</p>`;
+  } else {
+    h+=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #333;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-weight:700;font-size:13px">TOTAL ALL TIME</span>
+      <span style="font-weight:700;font-size:15px;color:${totR>=0?'#16a34a':'#dc2626'}">${eur(totR)}</span>
+    </div>`;
+  }
+
   document.getElementById('perf-pv-tbl').innerHTML=h;
 }
 
