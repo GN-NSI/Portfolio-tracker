@@ -355,8 +355,9 @@ const DEFAULTS=[
   {ticker:'COIN',name:'Coinbase',qty:1,pru:140.45,account:'CTO1',sector:'Finance',geo:'USA'},
   {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:311.58,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'LYFT',name:'Lyft',qty:10,pru:18.44,account:'CTO1',sector:'Consommation',geo:'USA'},
-  {ticker:'MSFT',name:'Microsoft',qty:1.85,pru:428.53,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'NVDA',name:'Nvidia',qty:7,pru:177.64,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'META',name:'Meta',qty:0.5,pru:554.52,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'MSFT',name:'Microsoft',qty:2.5,pru:412.76,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'NVDA',name:'Nvidia',qty:9,pru:175.42,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'NVTS',name:'Navitas Semi',qty:20,pru:9.09,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'RDDT',name:'Reddit',qty:3,pru:139.84,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'TSM',name:'TSMC',qty:1,pru:295.64,account:'CTO1',sector:'Tech',geo:'Asie'},
@@ -372,8 +373,7 @@ const DEFAULTS=[
   {ticker:'SPGI',name:'S&P Global',qty:0.351957,pru:343.80,account:'CTO2',sector:'Finance',geo:'USA',priceUSD:true},
   // PEA
   {ticker:'FR0011550185',name:'ETF S&P 500',qty:42,pru:26.76,account:'PEA',sector:'Multi',geo:'USA'},
-  {ticker:'FR0013412012',name:'ETF Tech Émergents',qty:22,pru:29.92,account:'PEA',sector:'Tech',geo:'Émergents'},
-  {ticker:'FR0011882364',name:'ETF Eau',qty:8,pru:31.62,account:'PEA',sector:'Eau/Infra',geo:'Multi'},
+  {ticker:'FR0013412012',name:'ETF Tech Émergents',qty:30,pru:30.21,account:'PEA',sector:'Tech',geo:'Émergents'},
   {ticker:'BESI.AS',name:'BESI',qty:1,pru:171.86,account:'PEA',sector:'Tech',geo:'Europe'},
 ];
 
@@ -406,6 +406,11 @@ const DEFAULT_TXS=[
   // IBKR 2025-2026
   {ticker:'VRT',name:'Vertiv',type:'buy', qty:1,price:163.78,date:'2025-12-10',note:'IBKR — achat',account:'CTO1'},
   {ticker:'VRT',name:'Vertiv',type:'sell',qty:1,price:244.55,date:'2026-02-19',note:'IBKR — vente totale',account:'CTO1'},
+  {ticker:'MSFT',name:'Microsoft',type:'buy',qty:0.65,price:367.88,date:'2026-03-26',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'META',name:'Meta',type:'buy',qty:0.5,price:554.52,date:'2026-03-26',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'FR0011882364',name:'ETF Eau',type:'sell',qty:8,price:30.68,date:'2026-03-31',note:'PEA — vente totale (arbitrage→Tech Asie)',account:'PEA'},
+  {ticker:'FR0013412012',name:'ETF Tech Émergents',type:'buy',qty:8,price:31.01,date:'2026-03-31',note:'PEA — arbitrage ETF Eau',account:'PEA'},
+  {ticker:'NVDA',name:'Nvidia',type:'buy',qty:2,price:167.65,date:'2026-03-31',note:'IBKR — renforcement',account:'CTO1'},
 ];
 
 // ── SNAPSHOTS PAR DÉFAUT ─────────────────────────────────────────
@@ -517,6 +522,7 @@ const DEFAULT_VERSEMENTS=[
   {date:'2026-02-11',amount:400,  account:'CTO1',note:'Versement IBKR'},
   {date:'2026-02-27',amount:400,  account:'CTO1',note:'Versement IBKR'},
   {date:'2026-03-04',amount:400,  account:'CTO1',note:'Versement IBKR (liquidités)'},
+  {date:'2026-03-31',amount:9,    account:'PEA', note:'Versement PEA (arbitrage ETF Eau→Tech Asie)'},
 ];
 
 // Seuils par défaut
@@ -547,7 +553,7 @@ const DEFAULT_WATCHLIST=[
   {ticker:'NBIS',     name:'Nebius',             target:75,   note:'', currency:'USD'},
   {ticker:'FICO',     name:'FICO',               target:900,  note:'', currency:'USD'},
   {ticker:'LITE',     name:'Lumentum Holdings',  target:500,  note:'', currency:'USD'},
-  {ticker:'ORCL',     name:'Oracle',             target:120,  note:'', currency:'USD'},
+  {ticker:'ORCL',     name:'Oracle',             target:120,  note:'Cloud ERP, transition IA, contrats LT', currency:'USD'},
   {ticker:'AI.PA',    name:'Air Liquide',        target:160,  note:'', currency:'EUR'},
   {ticker:'GTT.PA',   name:'GTT',                target:160,  note:'', currency:'EUR'},
   {ticker:'CRWD',     name:'CrowdStrike',        target:300,  note:'', currency:'USD'},
@@ -583,7 +589,7 @@ let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
 let fxKRW=0.00068; // 1 KRW ≈ 0.00068 EUR (taux mars 2026)
 let fxJPY=0.00625; // 1 JPY ≈ 0.00625 EUR (taux mars 2026, ~160 JPY/EUR)
-let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:1018,CTO2:5.02,PEA:32.81}));
+let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:275.23,CTO2:5.02,PEA:2.35}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
 
