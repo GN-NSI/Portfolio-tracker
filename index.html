@@ -305,8 +305,11 @@ const ETF_META={
 const YH_TICKER={
   '6857.T':null,
   '005930.KS':null,
-  'BY6.F':null,
-  'LYMS.DE':null,
+  'BY6.F':'BYD',
+  'LYMS.DE':'QQQ',
+  'MSTR':'MSTR',
+  'VRT':'VRT',
+  'FR0011882364':'CWAT.PA',
   'BESI.AS':'BESI.AS',
 };
 
@@ -350,17 +353,17 @@ const ETF_HOLDINGS={
 
 const DEFAULTS=[
   // CTO1 — IBKR (PRU en USD)
-  {ticker:'AMZN',name:'Amazon',qty:2,pru:215.64,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'BKNG',name:'Booking',qty:0.055,pru:3930.52,account:'CTO1',sector:'Consommation',geo:'USA'},
-  {ticker:'COIN',name:'Coinbase',qty:1,pru:140.45,account:'CTO1',sector:'Finance',geo:'USA'},
-  {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:311.58,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'LYFT',name:'Lyft',qty:10,pru:18.44,account:'CTO1',sector:'Consommation',geo:'USA'},
+  {ticker:'AMZN',name:'Amazon',qty:2,pru:214.97,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'BKNG',name:'Booking',qty:0.055,pru:3924.15,account:'CTO1',sector:'Consommation',geo:'USA'},
+  {ticker:'COIN',name:'Coinbase',qty:1,pru:140.10,account:'CTO1',sector:'Finance',geo:'USA'},
+  {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:310.88,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'LYFT',name:'Lyft',qty:10,pru:18.40,account:'CTO1',sector:'Consommation',geo:'USA'},
   {ticker:'META',name:'Meta',qty:0.5,pru:554.52,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'MSFT',name:'Microsoft',qty:2.5,pru:412.76,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'NVDA',name:'Nvidia',qty:9,pru:175.42,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'NVTS',name:'Navitas Semi',qty:20,pru:9.09,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'RDDT',name:'Reddit',qty:3,pru:139.84,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'TSM',name:'TSMC',qty:1,pru:295.64,account:'CTO1',sector:'Tech',geo:'Asie'},
+  {ticker:'MSFT',name:'Microsoft',qty:2.5,pru:411.80,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'NVDA',name:'Nvidia',qty:9,pru:175.06,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'NVTS',name:'Navitas Semi',qty:20,pru:9.007,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'RDDT',name:'Reddit',qty:3,pru:139.73,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'TSM',name:'TSMC',qty:1,pru:294.64,account:'CTO1',sector:'Tech',geo:'Asie'},
   {ticker:'V',name:'Visa',qty:0.75,pru:327.4,account:'CTO1',sector:'Finance',geo:'USA'},
   // CTO2 — Trade Republic (PRU en EUR, mais titres US cotent en USD sur Yahoo)
   {ticker:'6857.T',name:'Advantest',qty:3.001220,pru:109.98,account:'CTO2',sector:'Tech',geo:'Asie',priceJPY:true},
@@ -382,14 +385,14 @@ const DEFAULTS=[
 const DEFAULT_TXS=[
   // ACHATS TR 2024
   {ticker:'MSTR',name:'MicroStrategy',type:'buy',qty:1.0017,price:285.52,date:'2024-11-11',note:'TR — achat',account:'CTO2'},
-  {ticker:'005930.KS',name:'Samsung',type:'buy',qty:0.249781,price:1149.04,date:'2024-09-10',note:'TR — achat',account:'CTO2'},
-  {ticker:'6857.T',name:'Advantest',type:'buy',qty:1.004129,price:108,date:'2024-10-06',note:'TR — achat',account:'CTO2'},
-  {ticker:'TSM',name:'TSMC',type:'buy',qty:0.609037,price:256.13,date:'2024-11-12',note:'TR — achat',account:'CTO2'},
-  {ticker:'UBER',name:'Uber',type:'buy',qty:2.5,price:69.10,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
-  {ticker:'6857.T',name:'Advantest',type:'buy',qty:0.907091,price:110.24,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
   // VENTES TR 2024
   {ticker:'LYMS.DE',name:'Nasdaq 100 EUR',type:'sell',qty:3.0906,price:87.83,date:'2024-12-22',note:'TR — vente totale | PEA plus optimal fiscalement',account:'CTO2'},
   // ACHATS TR 2025
+  {ticker:'005930.KS',name:'Samsung',type:'buy',qty:0.249781,price:1149.04,date:'2025-09-10',note:'TR — achat',account:'CTO2'},
+  {ticker:'6857.T',name:'Advantest',type:'buy',qty:1.004129,price:108,date:'2025-10-06',note:'TR — achat',account:'CTO2'},
+  {ticker:'TSM',name:'TSMC',type:'buy',qty:0.609037,price:256.13,date:'2025-11-12',note:'TR — achat',account:'CTO2'},
+  {ticker:'UBER',name:'Uber',type:'buy',qty:2.5,price:69.10,date:'2025-12-22',note:'TR — achat',account:'CTO2'},
+  {ticker:'6857.T',name:'Advantest',type:'buy',qty:0.907091,price:110.24,date:'2025-12-22',note:'TR — achat',account:'CTO2'},
   {ticker:'COIN',name:'Coinbase',type:'buy',qty:1.002521,price:167.56,date:'2025-04-02',note:'TR — achat',account:'CTO2'},
   {ticker:'BY6.F',name:'BYD',type:'buy',qty:4.00442,price:45.45,date:'2025-04-02',note:'TR — achat',account:'CTO2'},
   {ticker:'BY6.F',name:'BYD',type:'buy',qty:1,price:42.23,date:'2025-04-04',note:'TR — achat',account:'CTO2'},
@@ -403,14 +406,34 @@ const DEFAULT_TXS=[
   {ticker:'BY6.F',name:'BYD',type:'sell',qty:5.00442,price:31.29,date:'2025-11-04',note:'TR — vente totale | Couper les pertes + trafic chiffres douteux',account:'CTO2'},
   {ticker:'BY6.F',name:'BYD',type:'dividend',qty:1,price:2.08,date:'2025-08-12',note:'TR — dividende BYD',account:'CTO2'},
   {ticker:'005930.KS',name:'Samsung',type:'sell',qty:0.12489,price:2002.56,date:'2025-01-14',note:'TR — vente partielle | Prise de profit',account:'CTO2'},
-  // IBKR 2025-2026
-  {ticker:'VRT',name:'Vertiv',type:'buy', qty:1,price:163.78,date:'2025-12-10',note:'IBKR — achat',account:'CTO1'},
-  {ticker:'VRT',name:'Vertiv',type:'sell',qty:1,price:244.55,date:'2026-02-19',note:'IBKR — vente totale | Prise de profit + PER élevé',account:'CTO1'},
-  {ticker:'MSFT',name:'Microsoft',type:'buy',qty:0.65,price:367.88,date:'2026-03-26',note:'IBKR — renforcement',account:'CTO1'},
-  {ticker:'META',name:'Meta',type:'buy',qty:0.5,price:554.52,date:'2026-03-26',note:'IBKR — achat',account:'CTO1'},
-  {ticker:'FR0011882364',name:'ETF Eau',type:'sell',qty:8,price:30.68,date:'2026-03-31',note:'PEA — vente totale | Arbitrage vers Tech Asie plus dynamique',account:'PEA'},
+  // IBKR décembre 2025 — ouverture compte
+  {ticker:'AMZN', name:'Amazon',    type:'buy', qty:1,    price:227.93, date:'2025-12-15',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:1,    price:177.86, date:'2025-12-15',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'TSM',  name:'TSMC',      type:'buy', qty:1,    price:294.64, date:'2025-12-15',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'MSFT', name:'Microsoft', type:'buy', qty:0.5,  price:480.17, date:'2025-12-15',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'VRT',  name:'Vertiv',    type:'buy', qty:1,    price:163.78, date:'2025-12-15',note:'IBKR — achat',account:'CTO1'},
+  // IBKR 2026
+  {ticker:'VRT',  name:'Vertiv',    type:'sell',qty:1,    price:244.55, date:'2026-02-18',note:'IBKR — vente totale | Prise de profit + PER élevé',account:'CTO1'},
+  {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:1,    price:180,    date:'2026-01-20',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'LYFT', name:'Lyft',      type:'buy', qty:10,   price:18.4,   date:'2026-01-21',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'V',    name:'Visa',      type:'buy', qty:0.75, price:326.93, date:'2026-01-26',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'MSFT', name:'Microsoft', type:'buy', qty:0.7,  price:423.98, date:'2026-01-29',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:2,    price:174.99, date:'2026-02-05',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'GOOGL',name:'Alphabet',  type:'buy', qty:0.5,  price:310.88, date:'2026-02-05',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'AMZN', name:'Amazon',    type:'buy', qty:1,    price:202,    date:'2026-02-06',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'RDDT', name:'Reddit',    type:'buy', qty:3,    price:139.73, date:'2026-02-11',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'COIN', name:'Coinbase',  type:'buy', qty:1,    price:140.1,  date:'2026-02-12',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'BKNG', name:'Booking',   type:'buy', qty:0.055,price:3924.15,date:'2026-02-19',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:1,    price:181.31, date:'2026-02-27',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'MSFT', name:'Microsoft', type:'buy', qty:0.4,  price:394.4,  date:'2026-02-27',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'NVTS', name:'Navitas Semi',type:'buy',qty:20,  price:9.00693,date:'2026-03-04',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:2,    price:175.695,date:'2026-03-20',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'MSFT', name:'Microsoft', type:'buy', qty:0.25, price:384.4,  date:'2026-03-20',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'MSFT', name:'Microsoft', type:'buy', qty:0.65, price:367.33, date:'2026-03-26',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'META', name:'Meta',      type:'buy', qty:0.5,  price:553.82, date:'2026-03-26',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:2,    price:167.5,  date:'2026-03-30',note:'IBKR — renforcement',account:'CTO1'},
+  {ticker:'FR0011882364',name:'ETF Eau',type:'sell',qty:8,price:30.68,  date:'2026-03-31',note:'PEA — vente totale | Arbitrage vers Tech Asie plus dynamique',account:'PEA'},
   {ticker:'FR0013412012',name:'ETF Tech Émergents',type:'buy',qty:8,price:31.01,date:'2026-03-31',note:'PEA — arbitrage ETF Eau',account:'PEA'},
-  {ticker:'NVDA',name:'Nvidia',type:'buy',qty:2,price:167.65,date:'2026-03-31',note:'IBKR — renforcement',account:'CTO1'},
 ];
 
 // ── SNAPSHOTS PAR DÉFAUT ─────────────────────────────────────────
@@ -1037,14 +1060,13 @@ function renderPerfPvTable(){
         <th style="${thS};text-align:left">Titre</th>
         <th style="${thS}">Cours actuel</th>`;
   years.forEach(y=>{
-    h+=`<th style="${thS};border-left:1px solid #2a2a2a" colspan="3">${y}</th>`;
+    h+=`<th style="${thS};border-left:1px solid #2a2a2a" colspan="2">${y}</th>`;
   });
   h+=`</tr><tr>
         <th style="${thS};text-align:left;color:#555"></th>
         <th style="${thS};color:#555"></th>`;
   years.forEach(()=>{
-    h+=`<th style="${thS};font-size:10px;color:#666;border-left:1px solid #2a2a2a">Achat</th>
-        <th style="${thS};font-size:10px;color:#666">Vente</th>
+    h+=`<th style="${thS};font-size:10px;color:#666;border-left:1px solid #2a2a2a">Vente</th>
         <th style="${thS};font-size:10px;color:#666">PV/MV</th>`;
   });
   h+=`</tr></thead><tbody>`;
@@ -1062,11 +1084,10 @@ function renderPerfPvTable(){
       const d=r.yearData[y];
       if(d){
         const pc=d.pnl>=0?'#16a34a':'#dc2626';
-        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#aaa">${d.isDividend?'—':eur(d.buyPrice)}</td>
-            <td style="${tdS};color:#aaa">${eur(d.sellPrice)}</td>
+        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#aaa">${eur(d.sellPrice)}</td>
             <td style="${tdS};font-weight:700;color:${pc}" title="${d.raison}">${d.pnl>=0?'+':''}${eur(d.pnl)}</td>`;
       } else {
-        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#333">—</td><td style="${tdS};color:#333">—</td><td style="${tdS};color:#333">—</td>`;
+        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#333">—</td><td style="${tdS};color:#333">—</td>`;
       }
     });
     h+=`</tr>`;
@@ -1079,7 +1100,7 @@ function renderPerfPvTable(){
   years.forEach(y=>{
     const t=yearTotals[y];
     const pc=t>=0?'#16a34a':'#dc2626';
-    h+=`<td style="${tdS};border-left:1px solid #2a2a2a"></td><td style="${tdS}"></td>
+    h+=`<td style="${tdS};border-left:1px solid #2a2a2a"></td>
         <td style="${tdS};font-weight:800;font-size:13px;color:${pc}">${t>=0?'+':''}${eur(t)}</td>`;
   });
   h+=`</tr>`;
@@ -2219,17 +2240,37 @@ function populateTxSel(){
   s.innerHTML=[...new Map(positions.map(p=>[p.ticker,p.name])).entries()]
     .map(([t,n])=>`<option value="${t}">${n}</option>`).join('');
 }
+let txSortCol='date', txSortDir=-1;
+function sortTx(col){
+  if(txSortCol===col) txSortDir*=-1;
+  else{txSortCol=col;txSortDir=col==='date'?-1:1;}
+  renderTx();
+}
 function renderTx(){
   if(!txs.length){
     document.getElementById('tx-tbl').innerHTML='<p style="font-size:12px;color:#aaa;padding:8px 0">Aucune transaction.</p>';
     return;
   }
+  function thTx(col,label,align='left'){
+    const active=txSortCol===col;
+    const arr=active?(txSortDir===1?'↑':'↓'):'↕';
+    return `<th class="${align}" style="cursor:pointer;user-select:none" onclick="sortTx('${col}')">${label} <span style="color:${active?'#60a5fa':'#555'};font-size:10px">${arr}</span></th>`;
+  }
+  const sorted=[...txs].sort((a,b)=>{
+    let va=a[txSortCol], vb=b[txSortCol];
+    if(txSortCol==='date'){va=new Date(a.date);vb=new Date(b.date);}
+    else if(txSortCol==='total'){va=a.qty*a.price;vb=b.qty*b.price;}
+    else if(txSortCol==='price'||txSortCol==='qty'){va=parseFloat(va)||0;vb=parseFloat(vb)||0;}
+    else{va=(va||'').toString().toLowerCase();vb=(vb||'').toString().toLowerCase();}
+    return va<vb?-txSortDir:va>vb?txSortDir:0;
+  });
   let h=`<table><thead><tr>
-    <th class="left">Date</th><th class="left">Titre</th><th>Cpte</th><th>Type</th><th>Qté</th><th>Prix unit.</th><th>Total</th><th>Note</th><th></th>
+    ${thTx('date','Date')}${thTx('name','Titre')}
+    <th>Cpte</th><th>Type</th>
+    ${thTx('qty','Qté')}${thTx('price','Prix unit.')}${thTx('total','Total')}
+    <th class="left">Note</th><th></th>
   </tr></thead><tbody>`;
-  [...txs].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach((t,si)=>{
-    const ri=txs.findIndex(x=>x===t)||si;
-    const isBuy=t.type==='buy';
+  sorted.forEach(t=>{
     const acct=t.account||'CTO2';
     const badge=acct==='PEA'?'bpea':acct==='CTO1'?'bcto1':'bcto2';
     const lab=acct==='PEA'?'PEA':acct==='CTO1'?'IBKR':'TR';
