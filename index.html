@@ -388,7 +388,7 @@ const DEFAULT_TXS=[
   {ticker:'UBER',name:'Uber',type:'buy',qty:2.5,price:69.10,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
   {ticker:'6857.T',name:'Advantest',type:'buy',qty:0.907091,price:110.24,date:'2024-12-22',note:'TR — achat',account:'CTO2'},
   // VENTES TR 2024
-  {ticker:'LYMS.DE',name:'Nasdaq 100 EUR',type:'sell',qty:3.0906,price:87.83,date:'2024-12-22',note:'TR — vente totale',account:'CTO2'},
+  {ticker:'LYMS.DE',name:'Nasdaq 100 EUR',type:'sell',qty:3.0906,price:87.83,date:'2024-12-22',note:'TR — vente totale | PEA plus optimal fiscalement',account:'CTO2'},
   // ACHATS TR 2025
   {ticker:'COIN',name:'Coinbase',type:'buy',qty:1.002521,price:167.56,date:'2025-04-02',note:'TR — achat',account:'CTO2'},
   {ticker:'BY6.F',name:'BYD',type:'buy',qty:4.00442,price:45.45,date:'2025-04-02',note:'TR — achat',account:'CTO2'},
@@ -399,16 +399,16 @@ const DEFAULT_TXS=[
   {ticker:'6857.T',name:'Advantest',type:'buy',qty:1.09,price:114.76,date:'2025-01-20',note:'TR — achat',account:'CTO2'},
   {ticker:'SPGI',name:'S&P Global',type:'buy',qty:0.351957,price:343.80,date:'2025-03-12',note:'TR — achat',account:'CTO2'},
   // VENTES TR 2025
-  {ticker:'MSTR',name:'MicroStrategy',type:'sell',qty:1.0017,price:383.26,date:'2025-07-14',note:'TR — vente totale',account:'CTO2'},
-  {ticker:'BY6.F',name:'BYD',type:'sell',qty:5.00442,price:31.29,date:'2025-11-04',note:'TR — vente totale',account:'CTO2'},
+  {ticker:'MSTR',name:'MicroStrategy',type:'sell',qty:1.0017,price:383.26,date:'2025-07-14',note:'TR — vente totale | Prise de profit',account:'CTO2'},
+  {ticker:'BY6.F',name:'BYD',type:'sell',qty:5.00442,price:31.29,date:'2025-11-04',note:'TR — vente totale | Couper les pertes + trafic chiffres douteux',account:'CTO2'},
   {ticker:'BY6.F',name:'BYD',type:'dividend',qty:1,price:2.08,date:'2025-08-12',note:'TR — dividende BYD',account:'CTO2'},
-  {ticker:'005930.KS',name:'Samsung',type:'sell',qty:0.12489,price:2002.56,date:'2025-01-14',note:'TR — vente partielle',account:'CTO2'},
+  {ticker:'005930.KS',name:'Samsung',type:'sell',qty:0.12489,price:2002.56,date:'2025-01-14',note:'TR — vente partielle | Prise de profit',account:'CTO2'},
   // IBKR 2025-2026
   {ticker:'VRT',name:'Vertiv',type:'buy', qty:1,price:163.78,date:'2025-12-10',note:'IBKR — achat',account:'CTO1'},
-  {ticker:'VRT',name:'Vertiv',type:'sell',qty:1,price:244.55,date:'2026-02-19',note:'IBKR — vente totale',account:'CTO1'},
+  {ticker:'VRT',name:'Vertiv',type:'sell',qty:1,price:244.55,date:'2026-02-19',note:'IBKR — vente totale | Prise de profit + PER élevé',account:'CTO1'},
   {ticker:'MSFT',name:'Microsoft',type:'buy',qty:0.65,price:367.88,date:'2026-03-26',note:'IBKR — renforcement',account:'CTO1'},
   {ticker:'META',name:'Meta',type:'buy',qty:0.5,price:554.52,date:'2026-03-26',note:'IBKR — achat',account:'CTO1'},
-  {ticker:'FR0011882364',name:'ETF Eau',type:'sell',qty:8,price:30.68,date:'2026-03-31',note:'PEA — vente totale (arbitrage→Tech Asie)',account:'PEA'},
+  {ticker:'FR0011882364',name:'ETF Eau',type:'sell',qty:8,price:30.68,date:'2026-03-31',note:'PEA — vente totale | Arbitrage vers Tech Asie plus dynamique',account:'PEA'},
   {ticker:'FR0013412012',name:'ETF Tech Émergents',type:'buy',qty:8,price:31.01,date:'2026-03-31',note:'PEA — arbitrage ETF Eau',account:'PEA'},
   {ticker:'NVDA',name:'Nvidia',type:'buy',qty:2,price:167.65,date:'2026-03-31',note:'IBKR — renforcement',account:'CTO1'},
 ];
@@ -522,6 +522,7 @@ const DEFAULT_VERSEMENTS=[
   {date:'2026-02-11',amount:400,  account:'CTO1',note:'Versement IBKR'},
   {date:'2026-02-27',amount:400,  account:'CTO1',note:'Versement IBKR'},
   {date:'2026-03-04',amount:400,  account:'CTO1',note:'Versement IBKR (liquidités)'},
+  {date:'2026-03-23',amount:1000, account:'CTO1',note:'Versement IBKR'},
   {date:'2026-03-31',amount:9,    account:'PEA', note:'Versement PEA (arbitrage ETF Eau→Tech Asie)'},
 ];
 
@@ -573,6 +574,7 @@ const DEFAULT_MANUAL_FUND={
   'AI.PA':    {per:26.98, perf:23.06, peg:2.29,  epsG:5.6,   margin:13.06, revG:-3.4},
   'RMS.PA':   {per:38.0,  perf:40.30, peg:3.27,  epsG:1.9,   margin:28.27, revG:3.9},
   'MA':       {per:33.56, perf:28.48, peg:1.81,  epsG:null,  margin:45.7,  revG:null},
+  'META':     {per:25.33, perf:19.67, peg:0.88,  epsG:null,  margin:30.08, revG:null},
   'AMUN.PA':  {per:9.10,  perf:10.41, peg:1.30,  epsG:null,  margin:39.63, revG:null},
   'BKNG':     {per:25.90, perf:16.03, peg:0.72,  epsG:33.7,  margin:20.08, revG:16.0},
   'RDDT':     {per:null,  perf:null,  peg:null,  epsG:254.2, margin:24.1,  revG:69.7},
@@ -828,11 +830,17 @@ function computeRealizedPnL(){
   Object.entries(byTicker).forEach(([ticker,txList])=>{
     const sorted=[...txList].sort((a,b)=>new Date(a.date)-new Date(b.date));
     const lots=[];let realized=0;const byYear={};
+    const sellTxs=[];
     sorted.forEach(tx=>{
       if(tx.type==='buy'){lots.push({qty:tx.qty,price:tx.price});}
       else if(tx.type==='sell'){
         const year=tx.date?tx.date.substring(0,4):'?';
-        let rem=tx.qty;let yearPnl=0;
+        let rem=tx.qty;let yearPnl=0;let avgBuy=0;let totalQty=0;
+        // Calculer PRU moyen des lots consommés
+        const lotsSnap=lots.map(l=>({...l}));
+        let remSnap=tx.qty;
+        lotsSnap.forEach(l=>{if(remSnap>0){const c=Math.min(l.qty,remSnap);avgBuy+=c*l.price;totalQty+=c;remSnap-=c;}});
+        avgBuy=totalQty>0?avgBuy/totalQty:0;
         while(rem>0.000001&&lots.length>0){
           const lot=lots[0];const c=Math.min(lot.qty,rem);
           const pnl=c*(tx.price-lot.price);
@@ -840,14 +848,16 @@ function computeRealizedPnL(){
           if(lot.qty<0.000001)lots.shift();
         }
         byYear[year]=(byYear[year]||0)+yearPnl;
+        sellTxs.push({date:tx.date,year,sellPrice:tx.price,buyPrice:avgBuy,qty:tx.qty,pnl:yearPnl,note:tx.note||''});
       }
       else if(tx.type==='dividend'){
         const year=tx.date?tx.date.substring(0,4):'?';
         realized+=tx.price*tx.qty;
         byYear[year]=(byYear[year]||0)+tx.price*tx.qty;
+        sellTxs.push({date:tx.date,year,sellPrice:tx.price,buyPrice:0,qty:tx.qty,pnl:tx.price*tx.qty,note:'Dividende',isDividend:true});
       }
     });
-    if(realized!==0)result[ticker]={realized,byYear};
+    if(realized!==0)result[ticker]={realized,byYear,sellTxs};
   });
   return result;
 }
@@ -927,7 +937,7 @@ function renderPerfCards(){
   document.getElementById('perf-cards').innerHTML=
     card('All Time',atPerf,`${eur(tv)} versés → ${eur(cur)}`)+
     card('YTD',ytd,'Depuis le 1er janvier')+
-    card('1 mois',m1,'Glissant 30 jours')+
+    card('30 jours',m1,'Glissant 30 jours')+
     card('1 semaine',w1,'Glissant 7 jours')+
     `<div class="perf-card">
       <div class="perf-label">Aujourd'hui</div>
@@ -958,65 +968,75 @@ function renderPerfPvTable(){
   const groups=consolidate();
   const groupMap={};
   groups.forEach(g=>{groupMap[g.ticker]={name:g.name,totalMV:g.totalMV};});
-  const allTickers=new Set([...Object.keys(realized),...Object.keys(groupMap)]);
 
-  // Construire rows avec byYear
-  const rows=[];
+  // Construire toutes les lignes enrichies
+  const allTickers=new Set(Object.keys(realized));
+  if(allTickers.size===0){
+    document.getElementById('perf-pv-tbl').innerHTML=`<p style="color:#aaa;font-size:12px">Aucune plus-value réalisée</p>`;
+    return;
+  }
+
+  // Regrouper toutes les transactions de vente par année
+  const byYear={};
   allTickers.forEach(ticker=>{
-    const real=realized[ticker]?.realized||0;
-    if(real===0) return;
+    const r=realized[ticker];
+    if(!r) return;
     const name=groupMap[ticker]?.name||ticker;
     const mv=groupMap[ticker]?.totalMV||0;
-    const byYear=realized[ticker]?.byYear||{};
-    rows.push({ticker,name,mv,real,byYear});
-  });
-  rows.sort((a,b)=>Math.abs(b.real)-Math.abs(a.real));
-
-  // Calculer totaux par année
-  const yearTotals={};
-  rows.forEach(r=>{
-    Object.entries(r.byYear).forEach(([y,v])=>{
-      yearTotals[y]=(yearTotals[y]||0)+v;
+    (r.sellTxs||[]).forEach(s=>{
+      if(!byYear[s.year]) byYear[s.year]=[];
+      byYear[s.year].push({ticker,name,mv,...s});
     });
   });
-  const years=Object.keys(yearTotals).sort().reverse();
+
+  const years=Object.keys(byYear).sort().reverse();
+  const thStyle='font-size:11px;color:#aaa;font-weight:600;padding:6px 8px;border-bottom:1px solid #2a2a2a;white-space:nowrap';
+  const tdStyle='padding:6px 8px;font-size:12px;vertical-align:middle';
 
   let h='';
 
-  // ── Section par année ──────────────────────────────
   years.forEach(year=>{
-    const ytot=yearTotals[year];
-    const yrows=rows.filter(r=>r.byYear[year]!=null);
-    h+=`<div style="margin-bottom:20px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#aaa">${year}</span>
-        <span style="font-size:13px;font-weight:700;color:${ytot>=0?'#16a34a':'#dc2626'}">${ytot>=0?'+':''}${eur(ytot)}</span>
-        <span style="font-size:11px;color:#888">— À déclarer aux impôts</span>
+    const yrows=byYear[year];
+    const ytot=yrows.reduce((s,r)=>s+r.pnl,0);
+    h+=`<div style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #333">
+        <span style="font-size:13px;font-weight:800;color:#fff">${year}</span>
+        <span style="font-size:14px;font-weight:700;color:${ytot>=0?'#16a34a':'#dc2626'}">${ytot>=0?'+':''}${eur(ytot)}</span>
+        <span style="font-size:10px;color:#666;background:#1e1e1e;padding:2px 8px;border-radius:4px">À déclarer aux impôts</span>
       </div>
-      <table><thead><tr>
-        <th class="left">Titre</th><th>Montant actuel</th><th>PV/MV ${year} €</th>
-      </tr></thead><tbody>`;
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="${thStyle};text-align:left">Titre</th>
+          <th style="${thStyle};text-align:right">Prix achat</th>
+          <th style="${thStyle};text-align:right">Prix vente</th>
+          <th style="${thStyle};text-align:right">Cours actuel</th>
+          <th style="${thStyle};text-align:right">PV / MV</th>
+          <th style="${thStyle};text-align:left">Raison</th>
+        </tr></thead><tbody>`;
     yrows.forEach(r=>{
-      const yval=r.byYear[year];
-      h+=`<tr>
-        <td style="font-weight:600">${r.name} <span style="font-size:10px;color:#aaa">${r.ticker}</span></td>
-        <td>${r.mv>0?eur(r.mv):'<span style="color:#aaa">—</span>'}</td>
-        <td style="color:${yval>=0?'#16a34a':'#dc2626'};font-weight:600">${eur(yval)}</td>
+      const pnlColor=r.pnl>=0?'#16a34a':'#dc2626';
+      const curPrice=r.mv>0?eur(r.mv/r.qty):'—';
+      // Extraire raison depuis la note (après le |)
+      const raison=r.note.includes('|')?r.note.split('|')[1].trim():(r.isDividend?'Dividende':'—');
+      h+=`<tr style="border-bottom:1px solid #1e1e1e">
+        <td style="${tdStyle};font-weight:600">${r.name} <span style="font-size:10px;color:#666">${r.ticker}</span></td>
+        <td style="${tdStyle};text-align:right;color:#aaa">${r.isDividend?'—':eur(r.buyPrice)}</td>
+        <td style="${tdStyle};text-align:right;color:#aaa">${eur(r.sellPrice)}</td>
+        <td style="${tdStyle};text-align:right;color:#888">${r.mv>0?eur(r.mv):'<span style="color:#555">—</span>'}</td>
+        <td style="${tdStyle};text-align:right;font-weight:700;color:${pnlColor}">${r.pnl>=0?'+':''}${eur(r.pnl)}</td>
+        <td style="${tdStyle};color:#888;font-style:italic;font-size:11px">${raison}</td>
       </tr>`;
     });
-    h+=`</tbody></table></div>`;
+    h+=`</tbody></table></div></div>`;
   });
 
-  // ── Total global ──────────────────────────────────
-  const totR=rows.reduce((s,r)=>s+r.real,0);
-  if(rows.length===0){
-    h=`<p style="color:#aaa;font-size:12px">Aucune plus-value réalisée</p>`;
-  } else {
-    h+=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #333;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-weight:700;font-size:13px">TOTAL ALL TIME</span>
-      <span style="font-weight:700;font-size:15px;color:${totR>=0?'#16a34a':'#dc2626'}">${eur(totR)}</span>
-    </div>`;
-  }
+  // Total all time
+  const totR=Object.values(realized).reduce((s,r)=>s+(r.realized||0),0);
+  h+=`<div style="margin-top:8px;padding:10px 8px;background:#1a1a1a;border-radius:6px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-weight:700;font-size:13px;color:#aaa">TOTAL ALL TIME</span>
+    <span style="font-weight:800;font-size:16px;color:${totR>=0?'#16a34a':'#dc2626'}">${totR>=0?'+':''}${eur(totR)}</span>
+  </div>`;
 
   document.getElementById('perf-pv-tbl').innerHTML=h;
 }
