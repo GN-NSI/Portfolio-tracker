@@ -740,6 +740,13 @@ async function loadAll(){
       if(q.changePct!=null) changes[w.ticker]=q.changePct;
     }
   }));
+  // Charger aussi les cours des titres vendus pour l'affichage PV/MV
+  const soldTickers=[...new Set(txs.filter(t=>t.type==='sell'||t.type==='dividend').map(t=>t.ticker))];
+  const soldToFetch=soldTickers.filter(tk=>!prices[tk]&&YH_TICKER[tk]!==null&&!manualPrices[tk]);
+  await Promise.all(soldToFetch.map(async tk=>{
+    const q=await fetchQuote(tk);
+    if(q&&q.price>0) prices[tk]=q.price;
+  }));
   document.getElementById('pprog').style.display='none';
   const n=Object.keys(prices).length,now=new Date().toLocaleTimeString('fr-FR');
   setSt(n>0?'sok':'serr',n>0?`${n}/${unique.length} cours chargés — ${now} — 1 USD = ${fxUSD.toFixed(4)} EUR`:'Erreur réseau.');
@@ -1029,16 +1036,20 @@ function renderPerfPvTable(){
     const yearData={};
     r.sellTxs.forEach(s=>{
       allYears.add(s.year);
-      if(!yearData[s.year]) yearData[s.year]={pnl:0,sellPrice:s.sellPrice,buyPrice:s.buyPrice,raison:'',qty:s.qty};
-      else {
-        // Plusieurs ventes la même année → agréger
-        yearData[s.year].pnl+=s.pnl;
-        yearData[s.year].sellPrice=s.sellPrice;
-        yearData[s.year].buyPrice=s.buyPrice;
+      if(!yearData[s.year]){
+        yearData[s.year]={pnl:0,sellPrice:s.sellPrice,raison:'',isDividend:false};
       }
-      yearData[s.year].pnl=s.pnl; // garder la dernière si ventes multiples
-      yearData[s.year].raison=s.note.includes('|')?s.note.split('|')[1].trim():(s.isDividend?'Dividende':'—');
-      yearData[s.year].isDividend=s.isDividend;
+      // Cumuler les PV/MV de toutes les ventes de l'année
+      yearData[s.year].pnl+=s.pnl;
+      yearData[s.year].sellPrice=s.sellPrice;
+      // Raison : priorité aux ventes sur dividendes
+      if(!s.isDividend){
+        yearData[s.year].raison=s.note.includes('|')?s.note.split('|')[1].trim():'—';
+        yearData[s.year].isDividend=false;
+      } else if(!yearData[s.year].raison){
+        yearData[s.year].raison='Dividende';
+        yearData[s.year].isDividend=true;
+      }
     });
     tickerRows[ticker]={name,curEUR,yearData};
   });
