@@ -969,71 +969,126 @@ function renderPerfPvTable(){
   const groupMap={};
   groups.forEach(g=>{groupMap[g.ticker]={name:g.name,totalMV:g.totalMV};});
 
-  // Construire toutes les lignes enrichies
-  const allTickers=new Set(Object.keys(realized));
-  if(allTickers.size===0){
+  if(Object.keys(realized).length===0){
     document.getElementById('perf-pv-tbl').innerHTML=`<p style="color:#aaa;font-size:12px">Aucune plus-value réalisée</p>`;
     return;
   }
 
-  // Regrouper toutes les transactions de vente par année
-  const byYear={};
-  allTickers.forEach(ticker=>{
-    const r=realized[ticker];
-    if(!r) return;
+  // Collecter toutes les lignes par ticker
+  // Structure : {ticker, name, curPriceEUR, rows:[{year,sellPrice,buyPrice,qty,pnl,raison}]}
+  const allYears=new Set();
+  const tickerRows={};
+
+  Object.entries(realized).forEach(([ticker,r])=>{
+    if(!r.sellTxs||r.sellTxs.length===0) return;
     const name=groupMap[ticker]?.name||ticker;
-    const mv=groupMap[ticker]?.totalMV||0;
-    (r.sellTxs||[]).forEach(s=>{
-      if(!byYear[s.year]) byYear[s.year]=[];
-      byYear[s.year].push({ticker,name,mv,...s});
+    // Cours actuel : prix live si dispo, sinon manuel, sinon —
+    let curEUR=null;
+    const p=prices[ticker];
+    if(p&&p>0){
+      // Convertir selon devise
+      const pos=positions.find(x=>x.ticker===ticker);
+      if(pos){
+        curEUR=getCoursEUR(pos);
+      } else {
+        // Titre vendu — essayer de deviner la devise par le ticker
+        const isJPY=ticker.endsWith('.T');
+        const isKRW=ticker.endsWith('.KS');
+        if(isJPY) curEUR=p*fxJPY;
+        else if(isKRW) curEUR=p*fxKRW;
+        else if(manualPrices[ticker]&&manualPrices[ticker]>0) curEUR=manualPrices[ticker];
+        else curEUR=p*fxUSD; // default USD pour titres IBKR/TR US
+      }
+    } else if(manualPrices[ticker]&&manualPrices[ticker]>0){
+      curEUR=manualPrices[ticker];
+    }
+
+    const yearData={};
+    r.sellTxs.forEach(s=>{
+      allYears.add(s.year);
+      if(!yearData[s.year]) yearData[s.year]={pnl:0,sellPrice:s.sellPrice,buyPrice:s.buyPrice,raison:'',qty:s.qty};
+      else {
+        // Plusieurs ventes la même année → agréger
+        yearData[s.year].pnl+=s.pnl;
+        yearData[s.year].sellPrice=s.sellPrice;
+        yearData[s.year].buyPrice=s.buyPrice;
+      }
+      yearData[s.year].pnl=s.pnl; // garder la dernière si ventes multiples
+      yearData[s.year].raison=s.note.includes('|')?s.note.split('|')[1].trim():(s.isDividend?'Dividende':'—');
+      yearData[s.year].isDividend=s.isDividend;
     });
+    tickerRows[ticker]={name,curEUR,yearData};
   });
 
-  const years=Object.keys(byYear).sort().reverse();
-  const thStyle='font-size:11px;color:#aaa;font-weight:600;padding:6px 8px;border-bottom:1px solid #2a2a2a;white-space:nowrap';
-  const tdStyle='padding:6px 8px;font-size:12px;vertical-align:middle';
+  const years=[...allYears].sort();
+  const thS='font-size:11px;color:#aaa;font-weight:600;padding:7px 8px;border-bottom:1px solid #2a2a2a;white-space:nowrap;text-align:right';
+  const tdS='padding:6px 8px;font-size:12px;text-align:right;vertical-align:middle';
 
-  let h='';
-
-  years.forEach(year=>{
-    const yrows=byYear[year];
-    const ytot=yrows.reduce((s,r)=>s+r.pnl,0);
-    h+=`<div style="margin-bottom:24px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #333">
-        <span style="font-size:13px;font-weight:800;color:#fff">${year}</span>
-        <span style="font-size:14px;font-weight:700;color:${ytot>=0?'#16a34a':'#dc2626'}">${ytot>=0?'+':''}${eur(ytot)}</span>
-        <span style="font-size:10px;color:#666;background:#1e1e1e;padding:2px 8px;border-radius:4px">À déclarer aux impôts</span>
-      </div>
-      <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr>
-          <th style="${thStyle};text-align:left">Titre</th>
-          <th style="${thStyle};text-align:right">Prix achat</th>
-          <th style="${thStyle};text-align:right">Prix vente</th>
-          <th style="${thStyle};text-align:right">Cours actuel</th>
-          <th style="${thStyle};text-align:right">PV / MV</th>
-          <th style="${thStyle};text-align:left">Raison</th>
-        </tr></thead><tbody>`;
-    yrows.forEach(r=>{
-      const pnlColor=r.pnl>=0?'#16a34a':'#dc2626';
-      const curPrice=r.mv>0?eur(r.mv/r.qty):'—';
-      // Extraire raison depuis la note (après le |)
-      const raison=r.note.includes('|')?r.note.split('|')[1].trim():(r.isDividend?'Dividende':'—');
-      h+=`<tr style="border-bottom:1px solid #1e1e1e">
-        <td style="${tdStyle};font-weight:600">${r.name} <span style="font-size:10px;color:#666">${r.ticker}</span></td>
-        <td style="${tdStyle};text-align:right;color:#aaa">${r.isDividend?'—':eur(r.buyPrice)}</td>
-        <td style="${tdStyle};text-align:right;color:#aaa">${eur(r.sellPrice)}</td>
-        <td style="${tdStyle};text-align:right;color:#888">${r.mv>0?eur(r.mv):'<span style="color:#555">—</span>'}</td>
-        <td style="${tdStyle};text-align:right;font-weight:700;color:${pnlColor}">${r.pnl>=0?'+':''}${eur(r.pnl)}</td>
-        <td style="${tdStyle};color:#888;font-style:italic;font-size:11px">${raison}</td>
-      </tr>`;
-    });
-    h+=`</tbody></table></div></div>`;
+  // Sous-totaux par année
+  const yearTotals={};
+  years.forEach(y=>{yearTotals[y]=0;});
+  Object.values(tickerRows).forEach(r=>{
+    years.forEach(y=>{if(r.yearData[y]) yearTotals[y]+=r.yearData[y].pnl;});
   });
+
+  let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr>
+        <th style="${thS};text-align:left">Titre</th>
+        <th style="${thS}">Cours actuel</th>`;
+  years.forEach(y=>{
+    h+=`<th style="${thS};border-left:1px solid #2a2a2a" colspan="3">${y}</th>`;
+  });
+  h+=`</tr><tr>
+        <th style="${thS};text-align:left;color:#555"></th>
+        <th style="${thS};color:#555"></th>`;
+  years.forEach(()=>{
+    h+=`<th style="${thS};font-size:10px;color:#666;border-left:1px solid #2a2a2a">Achat</th>
+        <th style="${thS};font-size:10px;color:#666">Vente</th>
+        <th style="${thS};font-size:10px;color:#666">PV/MV</th>`;
+  });
+  h+=`</tr></thead><tbody>`;
+
+  // Trier par nom
+  const sortedTickers=Object.keys(tickerRows).sort((a,b)=>tickerRows[a].name.localeCompare(tickerRows[b].name));
+
+  sortedTickers.forEach(ticker=>{
+    const r=tickerRows[ticker];
+    const cur=r.curEUR!=null?eur(r.curEUR):`<span style="color:#555">—</span>`;
+    h+=`<tr style="border-bottom:1px solid #1e1e1e">
+      <td style="${tdS};text-align:left;font-weight:600">${r.name} <span style="font-size:10px;color:#555">${ticker}</span></td>
+      <td style="${tdS};color:#aaa">${cur}</td>`;
+    years.forEach(y=>{
+      const d=r.yearData[y];
+      if(d){
+        const pc=d.pnl>=0?'#16a34a':'#dc2626';
+        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#aaa">${d.isDividend?'—':eur(d.buyPrice)}</td>
+            <td style="${tdS};color:#aaa">${eur(d.sellPrice)}</td>
+            <td style="${tdS};font-weight:700;color:${pc}" title="${d.raison}">${d.pnl>=0?'+':''}${eur(d.pnl)}</td>`;
+      } else {
+        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#333">—</td><td style="${tdS};color:#333">—</td><td style="${tdS};color:#333">—</td>`;
+      }
+    });
+    h+=`</tr>`;
+  });
+
+  // Ligne sous-totaux
+  h+=`<tr style="border-top:2px solid #333;background:#111">
+    <td style="${tdS};text-align:left;font-weight:700;color:#aaa">Sous-total</td>
+    <td style="${tdS}"></td>`;
+  years.forEach(y=>{
+    const t=yearTotals[y];
+    const pc=t>=0?'#16a34a':'#dc2626';
+    h+=`<td style="${tdS};border-left:1px solid #2a2a2a"></td><td style="${tdS}"></td>
+        <td style="${tdS};font-weight:800;font-size:13px;color:${pc}">${t>=0?'+':''}${eur(t)}</td>`;
+  });
+  h+=`</tr>`;
+
+  h+=`</tbody></table></div>`;
 
   // Total all time
   const totR=Object.values(realized).reduce((s,r)=>s+(r.realized||0),0);
-  h+=`<div style="margin-top:8px;padding:10px 8px;background:#1a1a1a;border-radius:6px;display:flex;justify-content:space-between;align-items:center">
+  h+=`<div style="margin-top:12px;padding:10px 12px;background:#1a1a1a;border-radius:6px;display:flex;justify-content:space-between;align-items:center">
     <span style="font-weight:700;font-size:13px;color:#aaa">TOTAL ALL TIME</span>
     <span style="font-weight:800;font-size:16px;color:${totR>=0?'#16a34a':'#dc2626'}">${totR>=0?'+':''}${eur(totR)}</span>
   </div>`;
