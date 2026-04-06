@@ -375,7 +375,7 @@ const DEFAULTS=[
   {ticker:'NVDA',name:'Nvidia',qty:1,pru:121.94,account:'CTO2',sector:'Tech',geo:'USA',priceUSD:true},
   {ticker:'SPGI',name:'S&P Global',qty:0.351957,pru:343.80,account:'CTO2',sector:'Finance',geo:'USA',priceUSD:true},
   // PEA
-  {ticker:'FR0011550185',name:'ETF S&P 500',qty:42,pru:26.76,account:'PEA',sector:'Multi',geo:'USA'},
+  {ticker:'FR0011550185',name:'ETF S&P 500',qty:42,pru:27.00,account:'PEA',sector:'Multi',geo:'USA'},
   {ticker:'FR0013412012',name:'ETF Tech Émergents',qty:30,pru:30.21,account:'PEA',sector:'Tech',geo:'Émergents'},
   {ticker:'BESI.AS',name:'BESI',qty:1,pru:171.86,account:'PEA',sector:'Tech',geo:'Europe'},
 ];
@@ -433,11 +433,13 @@ const DEFAULT_TXS=[
   {ticker:'META', name:'Meta',      type:'buy', qty:0.5,  price:553.82, date:'2026-03-26',note:'IBKR — achat',account:'CTO1'},
   {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:2,    price:167.5,  date:'2026-03-30',note:'IBKR — renforcement',account:'CTO1'},
   // PEA — achats ETF
-  {ticker:'FR0011882364',name:'ETF Eau',type:'buy',qty:8,price:31.62,date:'2025-03-23',note:'PEA — achat',account:'PEA'},
-  {ticker:'FR0011550185',name:'ETF S&P 500',type:'buy',qty:42,price:26.76,date:'2025-03-23',note:'PEA — achat',account:'PEA'},
-  {ticker:'BESI.AS',name:'BESI',type:'buy',qty:1,price:171.86,date:'2025-03-23',note:'PEA — achat',account:'PEA'},
-  {ticker:'FR0013412012',name:'ETF Tech Émergents',type:'buy',qty:22,price:29.92,date:'2025-06-03',note:'PEA — achat',account:'PEA'},
-  {ticker:'FR0011882364',name:'ETF Eau',type:'sell',qty:8,price:30.68,  date:'2026-03-31',note:'PEA — vente totale | Arbitrage vers Tech Asie plus dynamique',account:'PEA'},
+  {ticker:'FR0011882364',name:'ETF Eau',type:'buy',qty:8,price:31.6175,date:'2025-03-23',note:'PEA — achat initial',account:'PEA'},
+  {ticker:'FR0011550185',name:'ETF S&P 500',type:'buy',qty:38,price:26.76,date:'2025-03-23',note:'PEA — achat initial',account:'PEA'},
+  {ticker:'BESI.AS',name:'BESI',type:'buy',qty:1,price:171.86,date:'2026-03-06',note:'PEA — achat',account:'PEA'},
+  {ticker:'FR0013412012',name:'ETF Tech Émergents',type:'buy',qty:17.511,price:30.21,date:'2025-12-23',note:'PEA — achat',account:'PEA'},
+  {ticker:'FR0011550185',name:'ETF S&P 500',type:'buy',qty:4,price:29.33,date:'2026-01-30',note:'PEA — renforcement',account:'PEA'},
+  {ticker:'FR0013412012',name:'ETF Tech Émergents',type:'buy',qty:4.279,price:30.21,date:'2026-01-30',note:'PEA — renforcement',account:'PEA'},
+  {ticker:'FR0011882364',name:'ETF Eau',type:'sell',qty:8,price:30.5813,date:'2026-03-31',note:'PEA — vente totale | Arbitrage vers Tech Asie plus dynamique',account:'PEA'},
   {ticker:'FR0013412012',name:'ETF Tech Émergents',type:'buy',qty:8,price:31.01,date:'2026-03-31',note:'PEA — arbitrage ETF Eau',account:'PEA'},
 ];
 
@@ -883,13 +885,13 @@ function computeRealizedPnL(){
           if(lot.qty<0.000001)lots.shift();
         }
         byYear[year]=(byYear[year]||0)+yearPnl;
-        sellTxs.push({date:tx.date,year,sellPrice:tx.price,buyPrice:avgBuy,qty:tx.qty,pnl:yearPnl,note:tx.note||''});
+        sellTxs.push({date:tx.date,year,sellPrice:tx.price,buyPrice:avgBuy,qty:tx.qty,pnl:yearPnl,note:tx.note||'',account:tx.account||'CTO2'});
       }
       else if(tx.type==='dividend'){
         const year=tx.date?tx.date.substring(0,4):'?';
         realized+=tx.price*tx.qty;
         byYear[year]=(byYear[year]||0)+tx.price*tx.qty;
-        sellTxs.push({date:tx.date,year,sellPrice:tx.price,buyPrice:0,qty:tx.qty,pnl:tx.price*tx.qty,note:'Dividende',isDividend:true});
+        sellTxs.push({date:tx.date,year,sellPrice:tx.price,buyPrice:0,qty:tx.qty,pnl:tx.price*tx.qty,note:'Dividende',isDividend:true,account:tx.account||'CTO2'});
       }
     });
     if(realized!==0)result[ticker]={realized,byYear,sellTxs};
@@ -1059,15 +1061,23 @@ function renderPerfPvTable(){
     tickerRows[ticker]={name,curEUR,yearData};
   });
 
+  const DISPLAY_NAMES={'FR0011882364':'ETF Water','LYMS.DE':'ETF Nasdaq 100','BY6.F':'BYD','FR0011550185':'ETF S&P 500','FR0013412012':'ETF Tech Émergents'};
+
   const years=[...allYears].sort();
   const thS='font-size:11px;color:#aaa;font-weight:600;padding:7px 8px;border-bottom:1px solid #2a2a2a;white-space:nowrap;text-align:right';
   const tdS='padding:6px 8px;font-size:12px;text-align:right;vertical-align:middle';
 
-  // Sous-totaux par année
+  // Sous-totaux par année + fiscalité PS 17.2% sur PV CTO uniquement
   const yearTotals={};
-  years.forEach(y=>{yearTotals[y]=0;});
+  const yearPS={};  // prélèvements sociaux 17.2%
+  years.forEach(y=>{yearTotals[y]=0;yearPS[y]=0;});
   Object.values(tickerRows).forEach(r=>{
-    years.forEach(y=>{if(r.yearData[y]) yearTotals[y]+=r.yearData[y].pnl;});
+    years.forEach(y=>{
+      if(r.yearData[y]){
+        yearTotals[y]+=r.yearData[y].pnl;
+        if(r.yearData[y].account!=='PEA' && r.yearData[y].pnl>0) yearPS[y]+=r.yearData[y].pnl*0.172;
+      }
+    });
   });
 
   let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
@@ -1076,40 +1086,48 @@ function renderPerfPvTable(){
         <th style="${thS};text-align:left">Titre</th>
         <th style="${thS}">Cours actuel</th>`;
   years.forEach(y=>{
-    h+=`<th style="${thS};border-left:1px solid #2a2a2a" colspan="2">${y}</th>`;
+    h+=`<th style="${thS};border-left:1px solid #2a2a2a" colspan="3">${y}</th>`;
   });
   h+=`</tr><tr>
         <th style="${thS};text-align:left;color:#555"></th>
         <th style="${thS};color:#555"></th>`;
   years.forEach(()=>{
     h+=`<th style="${thS};font-size:10px;color:#666;border-left:1px solid #2a2a2a">Vente</th>
-        <th style="${thS};font-size:10px;color:#666">PV/MV</th>`;
+        <th style="${thS};font-size:10px;color:#666">PV/MV</th>
+        <th style="${thS};font-size:10px;color:#666">Raison</th>`;
   });
   h+=`</tr></thead><tbody>`;
 
-  // Trier par nom
-  const sortedTickers=Object.keys(tickerRows).sort((a,b)=>tickerRows[a].name.localeCompare(tickerRows[b].name));
+  const sortedTickers=Object.keys(tickerRows).sort((a,b)=>{
+    const na=DISPLAY_NAMES[a]||tickerRows[a].name;
+    const nb=DISPLAY_NAMES[b]||tickerRows[b].name;
+    return na.localeCompare(nb);
+  });
 
   sortedTickers.forEach(ticker=>{
     const r=tickerRows[ticker];
+    const displayName=DISPLAY_NAMES[ticker]||r.name;
     const cur=r.curEUR!=null?eur(r.curEUR):`<span style="color:#555">—</span>`;
     h+=`<tr style="border-bottom:1px solid #1e1e1e">
-      <td style="${tdS};text-align:left;font-weight:600">${r.name} <span style="font-size:10px;color:#555">${ticker}</span></td>
+      <td style="${tdS};text-align:left;font-weight:600">${displayName} <span style="font-size:10px;color:#555">${ticker}</span></td>
       <td style="${tdS};color:#aaa">${cur}</td>`;
     years.forEach(y=>{
       const d=r.yearData[y];
       if(d){
         const pc=d.pnl>=0?'#16a34a':'#dc2626';
+        const isPEA=d.account==='PEA';
+        const fiscLabel=isPEA?'<span style="font-size:9px;background:#1e3a5f;color:#60a5fa;padding:1px 4px;border-radius:3px;margin-left:4px">0% PEA</span>':'<span style="font-size:9px;background:#2a1a1a;color:#f87171;padding:1px 4px;border-radius:3px;margin-left:4px">PS 17.2%</span>';
         h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#aaa">${eur(d.sellPrice)}</td>
-            <td style="${tdS};font-weight:700;color:${pc}" title="${d.raison}">${d.pnl>=0?'+':''}${eur(d.pnl)}</td>`;
+            <td style="${tdS};font-weight:700;color:${pc}">${d.pnl>=0?'+':''}${eur(d.pnl)}${fiscLabel}</td>
+            <td style="${tdS};color:#777;font-style:italic;font-size:11px;text-align:left;padding-left:12px">${d.raison}</td>`;
       } else {
-        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#333">—</td><td style="${tdS};color:#333">—</td>`;
+        h+=`<td style="${tdS};border-left:1px solid #1e1e1e;color:#333">—</td><td style="${tdS};color:#333">—</td><td style="${tdS}"></td>`;
       }
     });
     h+=`</tr>`;
   });
 
-  // Ligne sous-totaux
+  // Sous-total PV/MV
   h+=`<tr style="border-top:2px solid #333;background:#111">
     <td style="${tdS};text-align:left;font-weight:700;color:#aaa">Sous-total</td>
     <td style="${tdS}"></td>`;
@@ -1117,13 +1135,25 @@ function renderPerfPvTable(){
     const t=yearTotals[y];
     const pc=t>=0?'#16a34a':'#dc2626';
     h+=`<td style="${tdS};border-left:1px solid #2a2a2a"></td>
-        <td style="${tdS};font-weight:800;font-size:13px;color:${pc}">${t>=0?'+':''}${eur(t)}</td>`;
+        <td style="${tdS};font-weight:800;font-size:13px;color:${pc}">${t>=0?'+':''}${eur(t)}</td>
+        <td style="${tdS}"></td>`;
+  });
+  h+=`</tr>`;
+
+  // Ligne PS
+  h+=`<tr style="background:#0d1117">
+    <td style="${tdS};text-align:left;font-size:11px;color:#888">Prél. sociaux CTO (17.2%)</td>
+    <td style="${tdS}"></td>`;
+  years.forEach(y=>{
+    const ps=yearPS[y];
+    h+=`<td style="${tdS};border-left:1px solid #1e1e1e"></td>
+        <td style="${tdS};font-size:12px;color:${ps>0?'#f87171':'#555'}">${ps>0?'-'+eur(ps):'—'}</td>
+        <td style="${tdS}"></td>`;
   });
   h+=`</tr>`;
 
   h+=`</tbody></table></div>`;
 
-  // Total all time
   const totR=Object.values(realized).reduce((s,r)=>s+(r.realized||0),0);
   h+=`<div style="margin-top:12px;padding:10px 12px;background:#1a1a1a;border-radius:6px;display:flex;justify-content:space-between;align-items:center">
     <span style="font-weight:700;font-size:13px;color:#aaa">TOTAL ALL TIME</span>
@@ -1526,7 +1556,44 @@ function renderPositions(){
       });
     }
   });
-  h+='</tbody></table>';
+  h+='</tbody>';
+
+  // Ligne moyenne pondérée et médiane (PV€ et PV%)
+  const validGroups=groups.filter(g=>g.pnl!==0);
+  if(validGroups.length>0){
+    const totMV=validGroups.reduce((s,g)=>s+g.totalMV,0);
+    // Moyenne pondérée PV% (pondérée par montant investi)
+    const wpPct=validGroups.reduce((s,g)=>s+(g.pnlPct*(g.totalMV/totMV)),0);
+    // Moyenne simple PV€
+    const avgPnl=validGroups.reduce((s,g)=>s+g.pnl,0)/validGroups.length;
+    // Médiane PV%
+    const sortedPct=[...validGroups].map(g=>g.pnlPct).sort((a,b)=>a-b);
+    const mid=Math.floor(sortedPct.length/2);
+    const medPct=sortedPct.length%2===0?(sortedPct[mid-1]+sortedPct[mid])/2:sortedPct[mid];
+    // Médiane PV€
+    const sortedPnl=[...validGroups].map(g=>g.pnl).sort((a,b)=>a-b);
+    const medPnl=sortedPnl.length%2===0?(sortedPnl[mid-1]+sortedPnl[mid])/2:sortedPnl[mid];
+
+    h+=`<tfoot>
+      <tr style="border-top:2px solid #333;background:#0d1117;font-size:11px">
+        <td style="padding:5px 8px;color:#888;font-weight:600" colspan="2">Moy. pond. / Médiane</td>
+        <td></td><td></td><td></td>
+        <td style="padding:5px 8px;color:#888">
+          <span style="color:${avgPnl>=0?'#16a34a':'#dc2626'}">${avgPnl>=0?'+':''}${eur(avgPnl)}</span>
+          <span style="color:#555"> / </span>
+          <span style="color:${medPnl>=0?'#16a34a':'#dc2626'}">${medPnl>=0?'+':''}${eur(medPnl)}</span>
+        </td>
+        <td style="padding:5px 8px;color:#888">
+          <span style="color:${wpPct>=0?'#16a34a':'#dc2626'}">${wpPct>=0?'+':''}${wpPct.toFixed(2)}%</span>
+          <span style="color:#555"> / </span>
+          <span style="color:${medPct>=0?'#16a34a':'#dc2626'}">${medPct>=0?'+':''}${medPct.toFixed(2)}%</span>
+        </td>
+        <td colspan="4"></td>
+      </tr>
+    </tfoot>`;
+  }
+
+  h+='</table>';
   document.getElementById('pos-tbl').innerHTML=h;
 }
 
