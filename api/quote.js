@@ -1,10 +1,10 @@
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
-
+ 
   const { symbol, type } = req.query;
   if (!symbol) return res.status(400).json({ error: 'symbol requis' });
-
+ 
   // ── MODE FUNDAMENTALS : Financial Modeling Prep (API stable 2025) ──
   if (type === 'fundamentals') {
     const FMP_KEY = 'yrFxAuUHv6XgKGxfXol6sGWVxmEq6tBr';
@@ -15,14 +15,14 @@ module.exports = async (req, res) => {
         fetch(`https://financialmodelingprep.com/stable/cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=2&apikey=${FMP_KEY}`),
         fetch(`https://financialmodelingprep.com/stable/analyst-estimates?symbol=${encodeURIComponent(symbol)}&period=annual&limit=10&apikey=${FMP_KEY}`)
       ]);
-
+ 
       const metricsData = rMetrics.ok ? await rMetrics.json() : [];
       const ratiosData  = rRatios.ok  ? await rRatios.json()  : [];
       const m = Array.isArray(metricsData) ? metricsData[0] : metricsData;
       const r = Array.isArray(ratiosData)  ? ratiosData[0]  : ratiosData;
-
+ 
       if (!m && !r) return res.status(404).json({ error: `Données introuvables pour ${symbol}` });
-
+ 
       // Forward EPS : prendre l'année fiscale à au moins 9 mois dans le futur
       let epsForward = null;
       if (rEst.ok) {
@@ -44,7 +44,7 @@ module.exports = async (req, res) => {
           }
         }
       }
-
+ 
       // FCF depuis cash flow statement
       let fcfGrowth = null, fcf0 = null, cfo0 = null, capex0 = null;
       if (rCF.ok) {
@@ -61,7 +61,7 @@ module.exports = async (req, res) => {
           capex0 = cfData[0]?.capitalExpenditure || null;
         }
       }
-
+ 
       return res.json({
         symbol,
         trailingPE:        r?.priceToEarningsRatioTTM || null,
@@ -84,42 +84,42 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: err.message });
     }
   }
-
+ 
   // ── MODE COURS : chart Yahoo Finance (défaut) ──────────────────────
   try {
     const safeSym = symbol.replace(/%5E/gi,'^').replace(/%3D/gi,'=');
     const range = req.query.range || '5d';
-
+ 
     // Pour la variation journalière fiable, toujours faire un appel 5d séparé
     const urlDaily = `https://query1.finance.yahoo.com/v8/finance/chart/${safeSym}?interval=1d&range=5d`;
     const urlHist  = range !== '5d'
       ? `https://query1.finance.yahoo.com/v8/finance/chart/${safeSym}?interval=1d&range=${range}`
       : null;
-
+ 
     const fetchOpts = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json'
       }
     };
-
+ 
     const [rDaily, rHist] = await Promise.all([
       fetch(urlDaily, fetchOpts),
       urlHist ? fetch(urlHist, fetchOpts) : Promise.resolve(null)
     ]);
-
+ 
     if (!rDaily.ok) return res.status(502).json({ error: 'Yahoo Finance indisponible' });
-
+ 
     const dataDaily = await rDaily.json();
     const metaD = dataDaily?.chart?.result?.[0]?.meta;
     const price = metaD?.regularMarketPrice || metaD?.previousClose;
     if (!price) return res.status(404).json({ error: `Cours introuvable pour ${symbol}` });
-
-    // Variation journalière depuis l'appel 5d (fiable)
+ 
+    // Variation journalière — utiliser regularMarketChangePercent si dispo (toujours J vs J-1)
     const prevClose = metaD?.chartPreviousClose || metaD?.previousClose || null;
-    const changeAbs = prevClose ? price - prevClose : null;
-    const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : null;
-
+    const changeAbs = metaD?.regularMarketChange ?? (prevClose ? price - prevClose : null);
+    const changePct = metaD?.regularMarketChangePercent ?? (prevClose ? ((price - prevClose) / prevClose) * 100 : null);
+ 
     // Variations multi-périodes depuis l'appel 1y
     let change1M = null, changeYTD = null, change1Y = null;
     if (rHist) {
@@ -132,7 +132,7 @@ module.exports = async (req, res) => {
         const oneMonth = now - 30 * 24 * 3600;
         const oneYear = now - 365 * 24 * 3600;
         const ytdStart = new Date(new Date().getFullYear(), 0, 1).getTime() / 1000;
-
+ 
         const findClose = (targetTs) => {
           let best = null, bestDiff = Infinity;
           timestamps.forEach((ts, i) => {
@@ -141,7 +141,7 @@ module.exports = async (req, res) => {
           });
           return best;
         };
-
+ 
         const c1M  = findClose(oneMonth);
         const cYTD = findClose(ytdStart);
         const c1Y  = findClose(oneYear);
@@ -150,7 +150,7 @@ module.exports = async (req, res) => {
         if (c1Y)  change1Y  = ((price - c1Y)  / c1Y)  * 100;
       }
     }
-
+ 
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
     return res.json({
       symbol, price, prevClose, changeAbs, changePct,
@@ -163,3 +163,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+ 
