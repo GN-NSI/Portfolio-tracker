@@ -176,7 +176,14 @@ input:focus,select:focus{outline:none;border-color:#999}
   <div id="pane-repartition" class="pane">
     <div class="two-col">
       <div class="card"><div class="ctitle">Par enveloppe</div><canvas id="cv-env" width="180" height="180" style="display:block;margin:0 auto 10px"></canvas><div id="lg-env" class="legend"></div></div>
-      <div class="card"><div class="ctitle">Zone géographique</div><canvas id="cv-geo" width="180" height="180" style="display:block;margin:0 auto 10px"></canvas><div id="lg-geo" class="legend"></div></div>
+      <div class="card" id="card-geo">
+        <div class="ctitle" style="display:flex;justify-content:space-between;align-items:center">
+          <span id="geo-title">Zone géographique</span>
+          <button id="geo-back-btn" onclick="geoBack()" style="display:none;font-size:11px;padding:3px 10px;background:#f3f4f6;border:1px solid #ddd;border-radius:6px;cursor:pointer">← Retour</button>
+        </div>
+        <canvas id="cv-geo" width="180" height="180" style="display:block;margin:0 auto 10px"></canvas>
+        <div id="lg-geo" class="legend"></div>
+      </div>
     </div>
     <div class="card"><div class="ctitle">Secteur</div><canvas id="cv-sec" width="400" height="160" style="display:block;margin:0 auto 10px;max-width:100%"></canvas><div id="lg-sec" class="legend" style="display:grid;grid-template-columns:1fr 1fr;gap:4px"></div></div>
     <div class="card">
@@ -2151,6 +2158,60 @@ function delWatchlist(i){
 }
 
 // ── RÉPARTITION ────────────────────────────────────────────────────
+// ── GEO DRILL-DOWN ASIE ────────────────────────────────────────────
+let geoMode='main'; // 'main' ou 'asia'
+function geoAsia(){
+  geoMode='asia';
+  const tot=positions.reduce((s,p)=>s+mvEUR(p),0);
+  if(!tot)return;
+  // Positions directes asiatiques
+  const asiaSub={'Japon':0,'Corée':0,'Taiwan':0,'Chine':0,'Autres Asie':0};
+  positions.forEach(p=>{
+    if(p.geo!=='Asie'&&p.geo!=='Émergents') return;
+    const mv=mvEUR(p);
+    if(p.ticker==='6857.T') asiaSub['Japon']+=mv;
+    else if(p.ticker==='005930.KS') asiaSub['Corée']+=mv;
+    else if(p.ticker==='TSM'||p.ticker==='TSMC') asiaSub['Taiwan']+=mv;
+    else if(p.geo==='Émergents'){
+      // ETF Tech Émergents — décomposer par pays via ETF_HOLDINGS
+      const holdings=ETF_HOLDINGS[p.ticker]||[];
+      holdings.forEach(h=>{
+        const country=
+          h.ticker==='TSM'?'Taiwan':
+          h.ticker==='005930.KS'||h.ticker==='000660.KS'?'Corée':
+          ['0700.HK','BABA','BIDU','3690.HK'].includes(h.ticker)?'Chine':
+          ['INFY'].includes(h.ticker)?'Inde':
+          ['2454.TW'].includes(h.ticker)?'Taiwan':'Autres Asie';
+        asiaSub[country]=(asiaSub[country]||0)+mv*(h.pct/100);
+      });
+      // Part non couverte
+      const cov=holdings.reduce((s,h)=>s+h.pct,0);
+      if(cov<100) asiaSub['Autres Asie']+=mv*((100-cov)/100);
+    } else {
+      asiaSub['Autres Asie']+=mv;
+    }
+  });
+  // Ajouter Inde si présent
+  if(asiaSub['Inde']>0) asiaSub['Inde']=(asiaSub['Inde']||0);
+  const totAsie=Object.values(asiaSub).reduce((s,v)=>s+v,0);
+  if(!totAsie)return;
+  const epA=v=>(v/totAsie)*100;
+  const ASIA_COLORS={'Japon':'#dc2626','Corée':'#16a34a','Taiwan':'#2563eb','Chine':'#d97706','Inde':'#9333ea','Autres Asie':'#888'};
+  const ak=Object.keys(asiaSub).filter(k=>asiaSub[k]>0).sort((a,b)=>asiaSub[b]-asiaSub[a]);
+  pie('cv-geo',ak,ak.map(k=>epA(asiaSub[k])),ak.map(k=>ASIA_COLORS[k]||'#888'));
+  document.getElementById('lg-geo').innerHTML=ak.map(k=>
+    `<div class="li"><div class="dot" style="background:${ASIA_COLORS[k]||'#888'}"></div><span style="flex:1">${k}</span><span style="font-weight:600">${epA(asiaSub[k]).toFixed(1)}%</span><span style="color:#aaa;font-size:10px;margin-left:4px">(${((asiaSub[k]/tot)*100).toFixed(1)}% ptf)</span></div>`
+  ).join('');
+  document.getElementById('geo-title').textContent='Asie — détail pays';
+  document.getElementById('geo-back-btn').style.display='block';
+}
+function geoBack(){
+  geoMode='main';
+  document.getElementById('geo-title').textContent='Zone géographique';
+  document.getElementById('geo-back-btn').style.display='none';
+  renderRep();
+}
+
 function pie(id,labels,data,colors){
   const ctx=document.getElementById(id);if(!ctx)return;
   if(charts2[id])charts2[id].destroy();
@@ -2173,9 +2234,24 @@ function renderRep(){
   const GC=['#1a1a1a','#2563eb','#dc2626','#d97706','#16a34a','#9333ea','#0891b2','#be185d','#ea580c','#0d9488','#7c3aed','#db2777','#65a30d','#0369a1','#b45309','#4338ca','#059669','#9f1239'];
   pie('cv-env',['PEA','CTO IBKR','CTO TR'],[ep(env.PEA),ep(env.CTO1),ep(env.CTO2)],['#2563eb','#16a34a','#d97706']);
   mkLegend('lg-env',[['PEA','#2563eb',ep(env.PEA)],['CTO IBKR','#16a34a',ep(env.CTO1)],['CTO TR','#d97706',ep(env.CTO2)]]);
-  const gk=Object.keys(geo).sort((a,b)=>geo[b]-geo[a]);
-  pie('cv-geo',gk,gk.map(k=>ep(geo[k])),GC.slice(0,gk.length));
-  mkLegend('lg-geo',gk.map((k,i)=>[k,GC[i]||'#888',ep(geo[k])]));
+  // Regrouper Émergents → Asie pour la vue principale
+  const geoMerged={};
+  Object.entries(geo).forEach(([k,v])=>{
+    const key=(k==='Émergents')?'Asie':k;
+    geoMerged[key]=(geoMerged[key]||0)+v;
+  });
+  const GEO_COLORS={'USA':'#1a1a1a','Asie':'#2563eb','Europe':'#d97706','Multi':'#9333ea','Autre':'#888'};
+  const gk=Object.keys(geoMerged).sort((a,b)=>geoMerged[b]-geoMerged[a]);
+  const gkColors=gk.map(k=>GEO_COLORS[k]||'#888');
+  pie('cv-geo',gk,gk.map(k=>ep(geoMerged[k])),gkColors);
+  // Légende cliquable pour Asie
+  document.getElementById('lg-geo').innerHTML=gk.map((k,i)=>
+    `<div class="li" style="${k==='Asie'?'cursor:pointer;':''}${k==='Asie'?'border-bottom:1px dashed #ddd;padding-bottom:4px;margin-bottom:2px':''}" onclick="${k==='Asie'?'geoAsia()':''}" title="${k==='Asie'?'Cliquer pour voir le détail Asie':''}">
+      <div class="dot" style="background:${gkColors[i]}"></div>
+      <span style="flex:1">${k}${k==='Asie'?` <span style="font-size:9px;color:#2563eb">▶ détail</span>`:''}</span>
+      <span style="font-weight:600">${ep(geoMerged[k]).toFixed(1)}%</span>
+    </div>`
+  ).join('');
   const sk=Object.keys(sec).sort((a,b)=>sec[b]-sec[a]);
   pie('cv-sec',sk,sk.map(k=>ep(sec[k])),GC.slice(0,sk.length));
   document.getElementById('lg-sec').innerHTML=sk.map((k,i)=>
