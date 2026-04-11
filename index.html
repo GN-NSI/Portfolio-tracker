@@ -354,7 +354,7 @@ const ETF_HOLDINGS={
 const DEFAULTS=[
   // CTO1 — IBKR (PRU en USD)
   {ticker:'AMZN',name:'Amazon',qty:2,pru:214.97,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'BKNG',name:'Booking',qty:0.055,pru:3924.15,account:'CTO1',sector:'Consommation',geo:'USA'},
+  {ticker:'BKNG',name:'Booking',qty:1.375,pru:156.97,account:'CTO1',sector:'Consommation',geo:'USA'},
   {ticker:'COIN',name:'Coinbase',qty:1,pru:140.10,account:'CTO1',sector:'Finance',geo:'USA'},
   {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:310.88,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'LYFT',name:'Lyft',qty:15,pru:16.70,account:'CTO1',sector:'Consommation',geo:'USA'},
@@ -422,7 +422,7 @@ const DEFAULT_TXS=[
   {ticker:'AMZN', name:'Amazon',    type:'buy', qty:1,    price:202,    date:'2026-02-06',note:'IBKR — renforcement',account:'CTO1'},
   {ticker:'RDDT', name:'Reddit',    type:'buy', qty:3,    price:139.73, date:'2026-02-11',note:'IBKR — achat',account:'CTO1'},
   {ticker:'COIN', name:'Coinbase',  type:'buy', qty:1,    price:140.1,  date:'2026-02-12',note:'IBKR — achat',account:'CTO1'},
-  {ticker:'BKNG', name:'Booking',   type:'buy', qty:0.055,price:3924.15,date:'2026-02-19',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'BKNG', name:'Booking',   type:'buy', qty:1.375,price:156.97, date:'2026-02-19',note:'IBKR — achat',account:'CTO1'},
   {ticker:'NVDA', name:'Nvidia',    type:'buy', qty:1,    price:181.31, date:'2026-02-27',note:'IBKR — renforcement',account:'CTO1'},
   {ticker:'MSFT', name:'Microsoft', type:'buy', qty:0.4,  price:394.4,  date:'2026-02-27',note:'IBKR — renforcement',account:'CTO1'},
   {ticker:'NVTS', name:'Navitas Semi',type:'buy',qty:20,  price:9.00693,date:'2026-03-04',note:'IBKR — achat',account:'CTO1'},
@@ -1472,18 +1472,19 @@ function renderPositions(){
   const groups=sortGroups(consolidate());
   const tot=groups.reduce((s,g)=>s+g.totalMV,0);
   let h=`<table><colgroup>
-    <col style="width:15%"><col style="width:6%"><col style="width:9%"><col style="width:9%">
-    <col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:14%"><col style="width:13%">
+    <col style="width:13%"><col style="width:5%"><col style="width:8%"><col style="width:8%">
+    <col style="width:7%"><col style="width:8%"><col style="width:7%"><col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:11%"><col style="width:7%"><col style="width:7%">
   </colgroup><thead><tr>
     ${thSortLeft('name','Titre')}
     ${thSort('totalQty','Qté')}
-    ${thSort('pruMoyEUR','PRU moy. €')}
-    <th>Cours €</th>
-    ${thSort('totalMV','Montant')}
+    <th>PRU</th>
+    <th>Cours</th>
+    ${thSort('totalMV','Montant €')}
     ${thSort('pnl','PV/MV €')}
     ${thSort('pnlPct','PV%')}
     <th>Var. J</th>
     <th>PV/MV J</th>
+    <th>Secteur</th>
     <th>Poids direct / réel ⓘ</th>
     <th>Comptes</th>
   </tr></thead><tbody>`;
@@ -1501,8 +1502,21 @@ function renderPositions(){
       `<span class="badge ${a==='PEA'?'bpea':a==='CTO1'?'bcto1':'bcto2'}">${a==='PEA'?'PEA':a==='CTO1'?'IBKR':'TR'}</span>`
     ).join(' ');
     const isManual=manualPrices[g.ticker]&&manualPrices[g.ticker]>0;
-    const coursDisplay=cp?`${eur(cp)}${isManual?' <span style="font-size:9px;color:#aaa">(M)</span>':''}`:'<span style="color:#aaa;font-size:10px">PRU</span>';
-    // Poids : barre double (direct en noir, ETF en bleu)
+    // Affichage PRU et cours : $ si IBKR uniquement, € sinon
+    const isIBKRonly=g.lines.every(l=>l.account==='CTO1');
+    const isMixed=g.lines.some(l=>l.account==='CTO1')&&g.lines.some(l=>l.account!=='CTO1');
+    const cpRaw=prices[g.ticker]||null;
+    let pruDisp, coursDisp;
+    if(isIBKRonly){
+      // PRU en $ (moyenne pondérée des PRU USD)
+      const totalQtyIBKR=g.lines.reduce((s,l)=>s+l.qty,0);
+      const pruUSD=g.lines.reduce((s,l)=>s+l.pru*l.qty,0)/totalQtyIBKR;
+      pruDisp=usd(pruUSD);
+      coursDisp=cpRaw&&cpRaw>0?`${usd(cpRaw)}${isManual?' <span style="font-size:9px;color:#aaa">(M)</span>':''}`:'<span style="color:#aaa;font-size:10px">PRU</span>';
+    } else {
+      pruDisp=eur(g.pruMoyEUR);
+      coursDisp=cp?`${eur(cp)}${isManual?' <span style="font-size:9px;color:#aaa">(M)</span>':''}`:'<span style="color:#aaa;font-size:10px">PRU</span>';
+    }
     const barDirect=Math.min(wDirect*4,100);
     const barReal=Math.min(wReal*4,100);
     const poidsCell=`<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
@@ -1516,20 +1530,25 @@ function renderPositions(){
     const chgCell=chgPct!=null
       ?`<span class="${chgPct>=0?'pos':'neg'}" style="font-weight:600">${chgPct>=0?'+':''}${chgPct.toFixed(2)}%</span>`
       :'<span class="r-na">—</span>';
-    // PV/MV journalière = valeur marché × variation %
     const pvDayEUR=chgPct!=null?(g.totalMV*(chgPct/100)):null;
     const pvDayCell=pvDayEUR!=null
       ?`<span class="${pvDayEUR>=0?'pos':'neg'}" style="font-weight:600">${pvDayEUR>=0?'+':''}${eur(pvDayEUR)}</span>`
       :'<span class="r-na">—</span>';
+    // Secteur (prendre le secteur de la première ligne)
+    const sector=g.lines[0]?.sector||'—';
+    const sectorColors={'Tech':'#1e3a5f','Finance':'#14532d','Consommation':'#7c2d12','Multi':'#374151','Émergents':'#4a1d96','Énergie':'#78350f','Santé':'#831843','Eau/Infra':'#0c4a6e'};
+    const sColor=sectorColors[sector]||'#1a1a1a';
+    const sectorBadge=`<span style="font-size:10px;background:${sColor};color:#fff;padding:1px 5px;border-radius:3px;white-space:nowrap">${sector}</span>`;
     h+=`<tr class="main-row" onclick="toggleRow(${gi},'${g.ticker}')">
       <td style="font-weight:600">${arrow}${g.name||g.ticker}</td>
       <td>${g.totalQty<1?g.totalQty.toFixed(3):g.totalQty%1===0?g.totalQty:g.totalQty.toFixed(3)}</td>
-      <td>${eur(g.pruMoyEUR)}</td><td>${coursDisplay}</td>
+      <td>${pruDisp}</td><td>${coursDisp}</td>
       <td style="font-weight:600">${eur(g.totalMV)}</td>
       <td class="${cl}" style="font-weight:600">${eur(g.pnl)}</td>
       <td class="${cl}">${fpct(g.pnlPct)}</td>
       <td>${chgCell}</td>
       <td>${pvDayCell}</td>
+      <td>${sectorBadge}</td>
       <td>${poidsCell}</td>
       <td>${badges}</td>
     </tr>`;
@@ -1538,65 +1557,73 @@ function renderPositions(){
         const lmv=mvEUR(line),lpnl=pnlEUR(line),lpruEUR=getPRUeur(line),lcp=getCoursEUR(line);
         const lpnlPct=line.qty*lpruEUR>0?(lpnl/(line.qty*lpruEUR))*100:0;
         const lcl=lpnl>=0?'pos':'neg';
-        const isUSD=accCurrency(line.account)==='USD';
-        const badge=`<span class="badge ${line.account==='PEA'?'bpea':line.account==='CTO1'?'bcto1':'bcto2'}">${line.account==='PEA'?'PEA':line.account==='CTO1'?'IBKR':'TR'}</span>`;
-        const pruDisp=isUSD?`${usd(line.pru)} <span class="dev-tag">(${eur(lpruEUR)})</span>`:eur(line.pru);
+        const lineIsUSD=line.account==='CTO1';
+        const lbadge=`<span class="badge ${line.account==='PEA'?'bpea':line.account==='CTO1'?'bcto1':'bcto2'}">${line.account==='PEA'?'PEA':line.account==='CTO1'?'IBKR':'TR'}</span>`;
+        const lpruDisp=lineIsUSD?usd(line.pru):eur(line.pru);
+        const lcoursDisp=lineIsUSD&&prices[line.ticker]?usd(prices[line.ticker]):(lcp?eur(lcp):'—');
         h+=`<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
-          <td>${badge} ${line.qty<1?line.qty.toFixed(4):line.qty} titres</td>
-          <td>—</td><td>${pruDisp}</td><td>${lcp?eur(lcp):'—'}</td>
+          <td>${lbadge} ${line.qty<1?line.qty.toFixed(4):line.qty} titres</td>
+          <td>—</td><td>${lpruDisp}</td><td>${lcoursDisp}</td>
           <td>${eur(lmv)}</td><td class="${lcl}">${eur(lpnl)}</td><td class="${lcl}">${fpct(lpnlPct)}</td>
-          <td colspan="2" style="color:#aaa">ligne individuelle</td>
+          <td colspan="3" style="color:#aaa">ligne individuelle</td>
+          <td colspan="2"></td>
         </tr>`;
       });
     }
     if(g.isETF){
       const expo=etfExpo(g.ticker,g.totalMV);
       h+=`<tr class="sub-row ${isOpen?'':'hidden'}" data-group="${gi}">
-        <td colspan="9" style="font-weight:600;font-size:11px;padding:5px 8px 2px 26px;color:#666">Composition estimée :</td>
+        <td colspan="10" style="font-weight:600;font-size:11px;padding:5px 8px 2px 26px;color:#666">Composition estimée :</td>
       </tr>`;
       expo.forEach(e=>{
         h+=`<tr class="etf-row ${isOpen?'':'hidden'}" data-group="${gi}">
           <td>${e.name} <span style="color:#aaa;font-size:10px">${e.ticker}</span></td>
           <td colspan="3" style="color:#aaa">${e.pct.toFixed(1)}% de l'ETF</td>
           <td>${eur(e.val)}</td>
-          <td colspan="4" style="color:#aaa;font-size:10px">exposition indirecte</td>
+          <td colspan="5" style="color:#aaa;font-size:10px">exposition indirecte</td>
+          <td colspan="2"></td>
         </tr>`;
       });
     }
   });
-  h+='</tbody>';
 
-  // Ligne moyenne pondérée et médiane (PV€ et PV%)
-  const validGroups=groups.filter(g=>g.pnl!==0);
+  // Statistiques : moyenne pondérée, moyenne simple, médiane
+  const validGroups=groups.filter(g=>g.pnl!==0&&g.totalMV>0);
   if(validGroups.length>0){
-    const totMV=validGroups.reduce((s,g)=>s+g.totalMV,0);
-    // Moyenne pondérée PV% (pondérée par montant investi)
-    const wpPct=validGroups.reduce((s,g)=>s+(g.pnlPct*(g.totalMV/totMV)),0);
-    // Moyenne simple PV€
+    const totMV2=validGroups.reduce((s,g)=>s+g.totalMV,0);
+    const wpPct=validGroups.reduce((s,g)=>s+(g.pnlPct*(g.totalMV/totMV2)),0);
+    const avgPct=validGroups.reduce((s,g)=>s+g.pnlPct,0)/validGroups.length;
     const avgPnl=validGroups.reduce((s,g)=>s+g.pnl,0)/validGroups.length;
-    // Médiane PV%
     const sortedPct=[...validGroups].map(g=>g.pnlPct).sort((a,b)=>a-b);
     const mid=Math.floor(sortedPct.length/2);
     const medPct=sortedPct.length%2===0?(sortedPct[mid-1]+sortedPct[mid])/2:sortedPct[mid];
-    // Médiane PV€
     const sortedPnl=[...validGroups].map(g=>g.pnl).sort((a,b)=>a-b);
     const medPnl=sortedPnl.length%2===0?(sortedPnl[mid-1]+sortedPnl[mid])/2:sortedPnl[mid];
-
-    h+=`<tr style="border-top:2px solid #333;background:#0d1117;font-size:11px">
-        <td style="padding:5px 8px;color:#888;font-weight:600" colspan="2">Moy. pond. / Médiane</td>
-        <td></td><td></td><td></td>
-        <td style="padding:5px 8px;color:#888">
-          <span style="color:${avgPnl>=0?'#16a34a':'#dc2626'}">${avgPnl>=0?'+':''}${eur(avgPnl)}</span>
-          <span style="color:#555"> / </span>
-          <span style="color:${medPnl>=0?'#16a34a':'#dc2626'}">${medPnl>=0?'+':''}${eur(medPnl)}</span>
-        </td>
-        <td style="padding:5px 8px;color:#888">
-          <span style="color:${wpPct>=0?'#16a34a':'#dc2626'}">${wpPct>=0?'+':''}${wpPct.toFixed(2)}%</span>
-          <span style="color:#555"> / </span>
-          <span style="color:${medPct>=0?'#16a34a':'#dc2626'}">${medPct>=0?'+':''}${medPct.toFixed(2)}%</span>
-        </td>
-        <td colspan="4"></td>
-      </tr>`;
+    const fv=(v,isEur)=>isEur?`${v>=0?'+':''}${eur(v)}`:`${v>=0?'+':''}${v.toFixed(2)}%`;
+    const fc=(v)=>v>=0?'#16a34a':'#dc2626';
+    h+=`</tbody><tfoot><tr style="border-top:2px solid #333;background:#0d1117">
+      <td style="padding:6px 8px;font-size:11px;color:#888;font-weight:700">Statistiques PV</td>
+      <td colspan="4"></td>
+      <td style="padding:6px 8px;font-size:11px">
+        <div style="color:#888;font-size:10px;margin-bottom:2px">Moy. pond. / Simple / Médiane</div>
+        <span style="color:${fc(wpPct*tot/100)}">${fv(wpPct*tot/100,true)}</span>
+        <span style="color:#444"> · </span>
+        <span style="color:${fc(avgPnl)}">${fv(avgPnl,true)}</span>
+        <span style="color:#444"> · </span>
+        <span style="color:${fc(medPnl)}">${fv(medPnl,true)}</span>
+      </td>
+      <td style="padding:6px 8px;font-size:11px">
+        <div style="color:#888;font-size:10px;margin-bottom:2px">Moy. pond. / Simple / Médiane</div>
+        <span style="color:${fc(wpPct)}">${fv(wpPct,false)}</span>
+        <span style="color:#444"> · </span>
+        <span style="color:${fc(avgPct)}">${fv(avgPct,false)}</span>
+        <span style="color:#444"> · </span>
+        <span style="color:${fc(medPct)}">${fv(medPct,false)}</span>
+      </td>
+      <td colspan="6"></td>
+    </tr></tfoot>`;
+  } else {
+    h+='</tbody>';
   }
 
   h+='</table>';
