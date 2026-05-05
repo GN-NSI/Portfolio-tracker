@@ -362,6 +362,8 @@ const DEFAULTS=[
   // CTO1 — IBKR (PRU en USD)
   {ticker:'AMZN',name:'Amazon',qty:2,pru:214.97,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'BKNG',name:'Booking',qty:1.375,pru:156.97,account:'CTO1',sector:'Consommation',geo:'USA'},
+  {ticker:'POET',name:'POET Technologies',qty:10,pru:8.315,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'SIVERS',name:'Sivers Semiconductors',qty:35.587188,pru:2.81,account:'CTO2',sector:'Tech',geo:'Europe'},
   {ticker:'COIN',name:'Coinbase',qty:1,pru:140.10,account:'CTO1',sector:'Finance',geo:'USA'},
   {ticker:'GOOGL',name:'Alphabet',qty:0.5,pru:310.88,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'LYFT',name:'Lyft',qty:15,pru:16.70,account:'CTO1',sector:'Consommation',geo:'USA'},
@@ -370,7 +372,7 @@ const DEFAULTS=[
   {ticker:'MSFT',name:'Microsoft',qty:2.5,pru:411.80,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'NVDA',name:'Nvidia',qty:9,pru:175.06,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'NVTS',name:'Navitas Semi',qty:20,pru:9.007,account:'CTO1',sector:'Tech',geo:'USA'},
-  {ticker:'RDDT',name:'Reddit',qty:3,pru:139.73,account:'CTO1',sector:'Tech',geo:'USA'},
+  {ticker:'RDDT',name:'Reddit',qty:4,pru:142.27,account:'CTO1',sector:'Tech',geo:'USA'},
   {ticker:'TSM',name:'TSMC',qty:1,pru:294.64,account:'CTO1',sector:'Tech',geo:'Asie'},
   {ticker:'SPGI',name:'S&P Global',qty:1,pru:414.44,account:'CTO1',sector:'Finance',geo:'USA'},
   {ticker:'V',name:'Visa',qty:0.75,pru:327.4,account:'CTO1',sector:'Finance',geo:'USA'},
@@ -455,6 +457,9 @@ const DEFAULT_TXS=[
   {ticker:'UBER',name:'Uber',       type:'buy', qty:4,    price:70.26,  date:'2026-04-10',note:'IBKR — achat (migration TR)',account:'CTO1'},
   {ticker:'LYFT',name:'Lyft',       type:'buy', qty:5,    price:13.17,  date:'2026-04-10',note:'IBKR — renforcement',account:'CTO1'},
   {ticker:'SPGI',name:'S&P Global', type:'buy', qty:1,    price:414.09, date:'2026-04-10',note:'IBKR — achat (migration TR)',account:'CTO1'},
+  {ticker:'SIVERS',name:'Sivers Semiconductors',type:'buy',qty:35.587188,price:2.81,date:'2026-04-23',note:'TR — achat',account:'CTO2'},
+  {ticker:'POET',name:'POET Technologies',type:'buy',qty:10,price:8.315,date:'2026-04-23',note:'IBKR — achat',account:'CTO1'},
+  {ticker:'RDDT',name:'Reddit',type:'buy',qty:1,price:149.87,date:'2026-04-23',note:'IBKR — renforcement',account:'CTO1'},
 ];
 
 // ── SNAPSHOTS PAR DÉFAUT ─────────────────────────────────────────
@@ -569,6 +574,8 @@ const DEFAULT_VERSEMENTS=[
   {date:'2026-03-23',amount:1000, account:'CTO1',note:'Versement IBKR'},
   {date:'2026-03-31',amount:9,    account:'PEA', note:'Versement PEA (arbitrage ETF Eau→Tech Asie)'},
   {date:'2026-04-10',amount:500,  account:'CTO1',note:'Versement IBKR (migration TR→IBKR)'},
+  {date:'2026-04-23',amount:101,  account:'CTO2',note:'Versement TR'},
+  {date:'2026-04-23',amount:400,  account:'CTO1',note:'Versement IBKR'},
 ];
 
 // Seuils par défaut
@@ -636,7 +643,7 @@ let versements=JSON.parse(localStorage.getItem('pf_versements')||'[]');
 let perfChart=null;
 let fxKRW=0.00068; // 1 KRW ≈ 0.00068 EUR (taux mars 2026)
 let fxJPY=0.00625; // 1 JPY ≈ 0.00625 EUR (taux mars 2026, ~160 JPY/EUR)
-let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:275.23,CTO2:0.00,PEA:2.35}));
+let liquidites=JSON.parse(localStorage.getItem('pf_liquidites')||JSON.stringify({CTO1:326.50,CTO2:0.00,PEA:2.35}));
 
 function accCurrency(a){return a==='CTO1'?'USD':'EUR';}
 
@@ -1537,7 +1544,18 @@ function renderPositions(){
     const chgCell=chgPct!=null
       ?`<span class="${chgPct>=0?'pos':'neg'}" style="font-weight:600">${chgPct>=0?'+':''}${chgPct.toFixed(2)}%</span>`
       :'<span class="r-na">—</span>';
-    const pvDayEUR=chgPct!=null?(g.totalMV*(chgPct/100)):null;
+    // PV/MV journalière : appliquer chgPct sur la valeur en devise native avant conversion
+    let pvDayEUR=null;
+    if(chgPct!=null){
+      const isUSDgroup=g.lines.every(l=>accCurrency(l.account)==='USD');
+      const isEURgroup=g.lines.every(l=>accCurrency(l.account)!=='USD');
+      if(isUSDgroup){
+        // Valeur en USD = totalMV / fxUSD, variation en USD, reconversion
+        pvDayEUR=(g.totalMV/fxUSD)*(chgPct/100)*fxUSD;
+      } else {
+        pvDayEUR=g.totalMV*(chgPct/100);
+      }
+    }
     const pvDayCell=pvDayEUR!=null
       ?`<span class="${pvDayEUR>=0?'pos':'neg'}" style="font-weight:600">${pvDayEUR>=0?'+':''}${eur(pvDayEUR)}</span>`
       :'<span class="r-na">—</span>';
@@ -1594,41 +1612,85 @@ function renderPositions(){
     }
   });
 
-  // Statistiques : moyenne pondérée, moyenne simple, médiane
-  const validGroups=groups.filter(g=>g.pnl!==0&&g.totalMV>0);
+  // Statistiques : moyenne pondérée PV% all time + daily
+  const validGroups=groups.filter(g=>g.totalMV>0);
   if(validGroups.length>0){
     const totMV2=validGroups.reduce((s,g)=>s+g.totalMV,0);
-    const wpPct=validGroups.reduce((s,g)=>s+(g.pnlPct*(g.totalMV/totMV2)),0);
-    const avgPct=validGroups.reduce((s,g)=>s+g.pnlPct,0)/validGroups.length;
-    const avgPnl=validGroups.reduce((s,g)=>s+g.pnl,0)/validGroups.length;
-    const sortedPct=[...validGroups].map(g=>g.pnlPct).sort((a,b)=>a-b);
-    const mid=Math.floor(sortedPct.length/2);
-    const medPct=sortedPct.length%2===0?(sortedPct[mid-1]+sortedPct[mid])/2:sortedPct[mid];
+    // Stats PV% all time
+    const wpAllTime=validGroups.reduce((s,g)=>s+(g.pnlPct*(g.totalMV/totMV2)),0);
+    const avgAllTime=validGroups.reduce((s,g)=>s+g.pnlPct,0)/validGroups.length;
+    const sortedAllTime=[...validGroups].map(g=>g.pnlPct).sort((a,b)=>a-b);
+    const mid=Math.floor(sortedAllTime.length/2);
+    const medAllTime=sortedAllTime.length%2===0?(sortedAllTime[mid-1]+sortedAllTime[mid])/2:sortedAllTime[mid];
+    // Stats PV€ all time
+    const avgPnlEUR=validGroups.reduce((s,g)=>s+g.pnl,0)/validGroups.length;
     const sortedPnl=[...validGroups].map(g=>g.pnl).sort((a,b)=>a-b);
-    const medPnl=sortedPnl.length%2===0?(sortedPnl[mid-1]+sortedPnl[mid])/2:sortedPnl[mid];
-    const fv=(v,isEur)=>isEur?`${v>=0?'+':''}${eur(v)}`:`${v>=0?'+':''}${v.toFixed(2)}%`;
-    const fc=(v)=>v>=0?'#16a34a':'#dc2626';
-    h+=`</tbody><tfoot><tr style="border-top:2px solid #333;background:#0d1117">
-      <td style="padding:6px 8px;font-size:11px;color:#888;font-weight:700">Statistiques PV</td>
-      <td colspan="4"></td>
-      <td style="padding:6px 8px;font-size:11px">
-        <div style="color:#888;font-size:10px;margin-bottom:2px">Moy. pond. / Simple / Médiane</div>
-        <span style="color:${fc(wpPct*tot/100)}">${fv(wpPct*tot/100,true)}</span>
-        <span style="color:#444"> · </span>
-        <span style="color:${fc(avgPnl)}">${fv(avgPnl,true)}</span>
-        <span style="color:#444"> · </span>
-        <span style="color:${fc(medPnl)}">${fv(medPnl,true)}</span>
-      </td>
-      <td style="padding:6px 8px;font-size:11px">
-        <div style="color:#888;font-size:10px;margin-bottom:2px">Moy. pond. / Simple / Médiane</div>
-        <span style="color:${fc(wpPct)}">${fv(wpPct,false)}</span>
-        <span style="color:#444"> · </span>
-        <span style="color:${fc(avgPct)}">${fv(avgPct,false)}</span>
-        <span style="color:#444"> · </span>
-        <span style="color:${fc(medPct)}">${fv(medPct,false)}</span>
-      </td>
-      <td colspan="6"></td>
-    </tr></tfoot>`;
+    const medPnlEUR=sortedPnl.length%2===0?(sortedPnl[mid-1]+sortedPnl[mid])/2:sortedPnl[mid];
+    const wpPnlEUR=validGroups.reduce((s,g)=>s+(g.pnl*(g.totalMV/totMV2)),0);
+    // Stats daily
+    const dayGroups=validGroups.filter(g=>changes[g.ticker]!=null);
+    const totMVday=dayGroups.reduce((s,g)=>s+g.totalMV,0);
+    const wpDay=totMVday>0?dayGroups.reduce((s,g)=>s+(changes[g.ticker]*(g.totalMV/totMVday)),0):null;
+    const avgDay=dayGroups.length>0?dayGroups.reduce((s,g)=>s+changes[g.ticker],0)/dayGroups.length:null;
+    const sortedDay=dayGroups.map(g=>changes[g.ticker]).sort((a,b)=>a-b);
+    const midD=Math.floor(sortedDay.length/2);
+    const medDay=sortedDay.length%2===0?(sortedDay[midD-1]+sortedDay[midD])/2:sortedDay[midD];
+    // Stats PV€ daily
+    const wpDayEUR=totMVday>0?dayGroups.reduce((s,g)=>s+(g.totalMV*(changes[g.ticker]/100)),0):null;
+    const avgDayEUR=dayGroups.length>0?dayGroups.reduce((s,g)=>s+(g.totalMV*(changes[g.ticker]/100)),0)/dayGroups.length:null;
+    const sortedDayEUR=dayGroups.map(g=>g.totalMV*(changes[g.ticker]/100)).sort((a,b)=>a-b);
+    const medDayEUR=sortedDayEUR.length%2===0?(sortedDayEUR[midD-1]+sortedDayEUR[midD])/2:sortedDayEUR[midD];
+
+    const fc=v=>v>=0?'#16a34a':'#dc2626';
+    const fp=v=>`${v>=0?'+':''}${v.toFixed(2)}%`;
+    const fe=v=>`${v>=0?'+':''}${eur(v)}`;
+    const statTd=(label,v,fmt)=>v!=null
+      ?`<td style="padding:4px 8px;font-size:11px;background:#0d1117;border-bottom:1px solid #1a1a1a">
+          <div style="font-size:9px;color:#555;margin-bottom:1px">${label}</div>
+          <span style="font-weight:700;color:${fc(v)}">${fmt(v)}</span>
+        </td>`
+      :`<td style="background:#0d1117;border-bottom:1px solid #1a1a1a"></td>`;
+    const emptyTd=`<td style="background:#0d1117;border-bottom:1px solid #1a1a1a"></td>`;
+
+    // Ligne label
+    h+=`</tbody><tfoot>
+    <tr style="border-top:2px solid #2a2a2a;background:#0d1117">
+      <td colspan="4" style="padding:5px 8px;font-size:10px;color:#555;font-weight:700;background:#0d1117;border-bottom:1px solid #1a1a1a">Statistiques</td>
+      ${emptyTd}
+      <td style="padding:5px 8px;font-size:10px;color:#555;background:#0d1117;border-bottom:1px solid #1a1a1a">PV/MV € all time</td>
+      <td style="padding:5px 8px;font-size:10px;color:#555;background:#0d1117;border-bottom:1px solid #1a1a1a">PV% all time</td>
+      <td style="padding:5px 8px;font-size:10px;color:#555;background:#0d1117;border-bottom:1px solid #1a1a1a">Var. J %</td>
+      <td style="padding:5px 8px;font-size:10px;color:#555;background:#0d1117;border-bottom:1px solid #1a1a1a">PV/MV J €</td>
+      <td colspan="3" style="background:#0d1117;border-bottom:1px solid #1a1a1a"></td>
+    </tr>
+    <tr style="background:#0d1117">
+      <td colspan="4" style="padding:4px 8px;font-size:10px;color:#555;background:#0d1117">Moy. pond.</td>
+      ${emptyTd}
+      ${statTd('',wpPnlEUR,fe)}
+      ${statTd('',wpAllTime,fp)}
+      ${wpDay!=null?statTd('',wpDay,fp):emptyTd}
+      ${wpDayEUR!=null?statTd('',wpDayEUR,fe):emptyTd}
+      <td colspan="3" style="background:#0d1117"></td>
+    </tr>
+    <tr style="background:#0d1117">
+      <td colspan="4" style="padding:4px 8px;font-size:10px;color:#555;background:#0d1117">Moy. simple</td>
+      ${emptyTd}
+      ${statTd('',avgPnlEUR,fe)}
+      ${statTd('',avgAllTime,fp)}
+      ${avgDay!=null?statTd('',avgDay,fp):emptyTd}
+      ${avgDayEUR!=null?statTd('',avgDayEUR,fe):emptyTd}
+      <td colspan="3" style="background:#0d1117"></td>
+    </tr>
+    <tr style="background:#0d1117">
+      <td colspan="4" style="padding:4px 8px;font-size:10px;color:#555;background:#0d1117">Médiane</td>
+      ${emptyTd}
+      ${statTd('',medPnlEUR,fe)}
+      ${statTd('',medAllTime,fp)}
+      ${dayGroups.length>0?statTd('',medDay,fp):emptyTd}
+      ${dayGroups.length>0?statTd('',medDayEUR,fe):emptyTd}
+      <td colspan="3" style="background:#0d1117"></td>
+    </tr>
+    </tfoot>`;
   } else {
     h+='</tbody>';
   }
